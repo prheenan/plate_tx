@@ -1,5 +1,6 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+exclude: 'data/mario-trim.mov'  # exclude this file, see  https://pre-commit.com/#top_level-exclude
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
@@ -20,7 +21,6 @@ repos:
         [
           "--fail-under=8",
           "--fail-on=E,W", # fail if errors, critical, or warnings (refactor / convention OK)
-          "--disable=invalid-name,no-name-in-module,protected-access", # disable errors like ' No name 'MolToSmiles' in module 'rdkit.Chem' (no-name-in-module)' since rdkit special
           "-rn", # Only display messages
           '--extension-pkg-allow-list=cv2'
         ]

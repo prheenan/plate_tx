@@ -14,17 +14,26 @@ def plate_fig(plate_val,dpi=200,in_per_n=1/10):
     :param in_per_n: inches per pixels
     :return:
     """
-    figsize = in_per_n * plate_val.shape[0], in_per_n*plate_val.shape[1]
+    n_rows, n_cols =  plate_val.shape[0], plate_val.shape[1]
+    figsize = in_per_n *n_cols, in_per_n*n_cols
     fig = plt.figure(figsize=figsize,dpi=dpi)
     fig.tight_layout(pad=0)
     ax = plt.gca()
-    format_for_plate(ax)
+    format_for_plate(ax,n_rows=n_rows,n_cols=n_cols)
     ax.imshow(plate_val)
     return fig
 
+def _default_if_none(val,default):
+    """
 
+    :param val: value
+    :param default:  if none, return this instead
+    :return:
+    """
+    return default if val is None else val
 
-def format_for_plate(ax=None, font_size=4, spacing_col=2, spacing_row=2,
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def format_for_plate(ax=None, font_size=4, spacing_col=None, spacing_row=None,
                      n_rows=32, n_cols=48):
     """
 
@@ -36,6 +45,18 @@ def format_for_plate(ax=None, font_size=4, spacing_col=2, spacing_row=2,
     :param n_cols:  number of columns
     :return:  nothing, modifies axis
     """
+    # determine how many labels to show
+    if spacing_col is None or spacing_row is None:
+        # then figure out the size based on the number of wells
+        size = n_rows * n_cols
+        size_defaults = [ [384,1],
+                          [1536,2],
+                          [3456,3]]
+        for size_i,default in size_defaults:
+            if size <= size_i:
+                spacing_col = _default_if_none(spacing_col, default)
+                spacing_row = _default_if_none(spacing_row, default)
+                break
     if ax is None:
         ax = plt.gca()
     rows = utilities.labels_rows(n_rows)
@@ -57,6 +78,7 @@ def flatten_rgb(image):
     """
     return np.reshape(image,(image.shape[0]*image.shape[1],1,3))
 
+# pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def flat_vs_matrix_figure(matrix,flat=None,figsize=(4.25,2.1),dpi=200,
                           width_ratios=(10,1),font_size=5,animated=False):
     """
@@ -77,13 +99,15 @@ def flat_vs_matrix_figure(matrix,flat=None,figsize=(4.25,2.1),dpi=200,
     fig, axs = plt.subplots(nrows=1,ncols=2,dpi=dpi,layout="constrained",
                            figsize=figsize,width_ratios=width_ratios)
     ax = axs[0]
-    format_for_plate(ax=ax,font_size=font_size)
+    format_for_plate(ax=ax,font_size=font_size,
+                     n_cols=matrix.shape[1],n_rows=matrix.shape[0])
     # Create an initial image
     im_matrix = ax.imshow(matrix,interpolation='none',animated=animated)
-    arrowprops={'arrowstyle':'simple,head_width=1,head_length=0.5,tail_width=0.5', 'shrinkA': 0, 'shrinkB': 0,
+    arrowprops={'arrowstyle':'simple,head_width=1,head_length=0.5,tail_width=0.5',
+                'shrinkA': 0, 'shrinkB': 0,
                 'lw':0.1,'facecolor':"k",'edgecolor':"k"}
-    kw_arrow = dict(xycoords='figure fraction',arrowprops=arrowprops,clip_on=False,
-                    textcoords='figure fraction',text="")
+    kw_arrow = {'xycoords':'figure fraction','arrowprops':arrowprops,
+                'clip_on':False,'textcoords':'figure fraction','text':""}
     dx = 0.04
     offset_x = 0.805
     for y in [0.15, 0.45,0.8]:
@@ -94,5 +118,6 @@ def flat_vs_matrix_figure(matrix,flat=None,figsize=(4.25,2.1),dpi=200,
     im_flat = ax_pixels.imshow(flat,aspect="auto",interpolation='none',animated=animated)
     ax_pixels.tick_params(axis='both', which='both',length=0,pad=2)
     ax_pixels.yaxis.set_label_position('right')
-    ax_pixels.tick_params(top=False, labeltop=False, bottom=False, labelbottom=False,labelleft=False)
+    ax_pixels.tick_params(top=False, labeltop=False, bottom=False,
+                          labelbottom=False,labelleft=False)
     return fig, axs, [im_matrix,im_flat]
