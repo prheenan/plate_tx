@@ -9,6 +9,7 @@ dependencies:
   - appnope=0.1.2
   - argon2-cffi=21.3.0
   - argon2-cffi-bindings=21.2.0
+  - astroid=3.3.8
   - asttokens=2.0.5
   - async-lru=2.0.4
   - attrs=24.3.0
@@ -27,6 +28,7 @@ dependencies:
   - cairo=1.18.0
   - certifi=2024.12.14
   - cffi=1.17.1
+  - cfgv=3.4.0
   - charset-normalizer=3.3.2
   - comm=0.2.1
   - contourpy=1.2.0
@@ -35,10 +37,14 @@ dependencies:
   - debugpy=1.8.11
   - decorator=5.1.1
   - defusedxml=0.7.1
+  - dill=0.3.8
+  - distlib=0.3.8
+  - et_xmlfile=1.1.0
   - exceptiongroup=1.2.0
   - executing=0.8.3
   - expat=2.6.4
   - ffmpeg=6.1.1
+  - filelock=3.13.1
   - font-ttf-dejavu-sans-mono=2.37
   - font-ttf-inconsolata=2.001
   - font-ttf-source-code-pro=2.030
@@ -60,6 +66,7 @@ dependencies:
   - httpcore=1.0.2
   - httpx=0.27.0
   - icu=73.2
+  - identify=2.5.5
   - idna=3.7
   - imath=3.1.11
   - importlib-metadata=8.5.0
@@ -68,6 +75,7 @@ dependencies:
   - intel-openmp=2023.1.0
   - ipykernel=6.29.5
   - ipython=8.15.0
+  - isort=5.13.2
   - jasper=4.2.4
   - jedi=0.19.2
   - jinja2=3.1.4
@@ -150,6 +158,7 @@ dependencies:
   - matplotlib=3.7.1
   - matplotlib-base=3.7.1
   - matplotlib-inline=0.1.6
+  - mccabe=0.7.0
   - mistune=2.0.4
   - mkl=2023.1.0
   - mkl-service=2.4.0
@@ -161,6 +170,7 @@ dependencies:
   - ncurses=6.4
   - nest-asyncio=1.6.0
   - nettle=3.9.1
+  - nodeenv=1.7.0
   - notebook=7.2.2
   - notebook-shim=0.2.3
   - numexpr=2.8.4
@@ -170,6 +180,7 @@ dependencies:
   - openexr=3.2.2
   - openh264=2.4.1
   - openjpeg=2.5.2
+  - openpyxl=3.1.5
   - openssl=3.4.0
   - overrides=7.4.0
   - p11-kit=0.24.1
@@ -185,6 +196,7 @@ dependencies:
   - pixman=0.44.2
   - platformdirs=3.10.0
   - pooch=1.8.2
+  - pre-commit=3.4.0
   - prometheus_client=0.21.0
   - prompt-toolkit=3.0.43
   - psutil=5.9.0
@@ -195,6 +207,7 @@ dependencies:
   - py-opencv=4.10.0
   - pycparser=2.21
   - pygments=2.15.1
+  - pylint=3.3.3
   - pyparsing=3.2.0
   - pysocks=1.7.1
   - python=3.9.21
@@ -227,14 +240,17 @@ dependencies:
   - tinycss2=1.2.1
   - tk=8.6.14
   - tomli=2.0.1
+  - tomlkit=0.13.2
   - tornado=6.4.2
   - tqdm=4.66.5
   - traitlets=5.14.3
   - typing-extensions=4.12.2
   - typing_extensions=4.12.2
   - tzdata=2024b
+  - ukkonen=1.0.1
   - unicodedata2=15.1.0
   - urllib3=2.2.3
+  - virtualenv=20.28.0
   - wcwidth=0.2.5
   - webencodings=0.5.1
   - websocket-client=1.8.0

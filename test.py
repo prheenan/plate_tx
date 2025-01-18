@@ -2,9 +2,11 @@
 All unit tests
 """
 import unittest
+import tempfile
 import numpy as np
 import video
 import utilities
+import plate_io
 
 class MyTestCase(unittest.TestCase):
     """
@@ -34,7 +36,33 @@ class MyTestCase(unittest.TestCase):
                 video.resize_video(cls.video_matrix,px_width=n_cols,px_height=n_rows,
                                    disable_tqdm=True)
 
-    def test_conversions(self):
+    def test_01_basic_file_io(self):
+        """
+        test basic file io:
+
+        (1) reading in csv and xlsx files
+        (2) making sure the data is correct
+        """
+        self.i_sub_test = 0
+        for k,video_k in self.resized_videos.items():
+            matrix = video_k[0, :, :, 0]
+            plate_df = utilities.matrix_to_plate_df(matrix)
+            for suffix,f_save in [[".csv",plate_df.to_csv],
+                                  [".xlsx",plate_df.to_excel]]:
+                with tempfile.NamedTemporaryFile(suffix=suffix) as f:
+                    f_save(f.name)
+                    sheet_to_dfs = plate_io.plate_to_flat(f.name)
+                    with self.subTest(i=self.i_sub_test,msg=k):
+                        # should only have one file output
+                        assert len(sheet_to_dfs['Sheet1']) == 1
+                    self.i_sub_test += 1
+                    with self.subTest(i=self.i_sub_test,msg=k):
+                        # make sure the data we read back in is correct
+                        assert (sheet_to_dfs['Sheet1'][0].to_numpy() == matrix).all()
+                    self.i_sub_test += 1
+
+
+    def test_00_conversions(self):
         """
         Test converting from matrices to
         """

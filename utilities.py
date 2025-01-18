@@ -42,6 +42,7 @@ def matrix_to_plate_df(matrix,n_rows=None,n_cols=None):
     :return: matrix represented as a dataframe, with index being row names
     and column being column names
     """
+    matrix = np.array(matrix)
     size_rows, size_cols = matrix.shape
     if n_rows is None:
         n_rows = size_rows
@@ -122,6 +123,11 @@ def labels_cols(n,leading_zero=None):
             for i in range(1,1+n)]
 
 def plate_to_well_dict():
+    """
+
+    :return: dictionary where keys are plate names (e.g., 384) and values are
+    dictionary of plate properties including n_rows and n_columns (e.g, 16, 24)
+    """
     return _PLATE_DICT
 
 def plate_row_cols(p):
