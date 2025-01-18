@@ -2,6 +2,7 @@
 All unit tests
 """
 import unittest
+import numpy as np
 import video
 import utilities
 
@@ -14,6 +15,7 @@ class MyTestCase(unittest.TestCase):
         Intialization (blank)
         """
         super().__init__(*args,**kwargs)
+        self.i_sub_test = 0
 
     @classmethod
     def setUpClass(cls):
@@ -34,8 +36,33 @@ class MyTestCase(unittest.TestCase):
 
     def test_conversions(self):
         """
-        Placeholder
+        Test converting from matrices to
         """
+        self.i_sub_test = 0
+        for k,video_k in self.resized_videos.items():
+            # just look at the first time point and red channel
+            matrix = video_k[0, :, :, 0]
+            plate_df = utilities.matrix_to_plate_df(matrix)
+            flat_df = utilities.plate_to_flat_df(plate_df)
+            plate_df_2 = utilities.flat_to_plate_df(flat_df)
+            flat_df_2 = utilities.plate_to_flat_df(plate_df_2)
+            matrix_2 = utilities.plate_df_to_matrix(plate_df_2)
+            matrix_3 = utilities.flat_df_to_matrix(flat_df_2)
+            # make sure the two matrics match
+            with self.subTest(i=self.i_sub_test,msg=k):
+                np.testing.assert_allclose(matrix_2,matrix)
+            self.i_sub_test += 1
+            with self.subTest(i=self.i_sub_test,msg=k):
+                np.testing.assert_allclose(matrix_3,matrix)
+            self.i_sub_test += 1
+            # make sure the plate translation matches
+            with self.subTest(i=self.i_sub_test,msg=k):
+                assert plate_df_2.equals(plate_df)
+            self.i_sub_test += 1
+            # make sure the flat translation matches
+            with self.subTest(i=self.i_sub_test,msg=k):
+                assert flat_df_2.equals(flat_df)
+            self.i_sub_test += 1
 
 if __name__ == '__main__':
     unittest.main()

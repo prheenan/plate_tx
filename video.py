@@ -2,6 +2,7 @@
 Video-specific code
 """
 import os
+import warnings
 from skvideo.io import vread
 import cv2 as cv
 import numpy as np
@@ -33,7 +34,9 @@ def read_video(file_name,as_grey=False,**kw):
         N is width
         C is depth (e.g., C=3 for RGB, C=1 for greyscale)
     """
-    return vread(file_name,as_grey=as_grey,**kw)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore",category=DeprecationWarning)
+        return vread(file_name,as_grey=as_grey,**kw)
 
 
 def resize_video(video_slice,px_width=48,px_height=32,

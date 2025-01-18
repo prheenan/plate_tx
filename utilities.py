@@ -5,6 +5,34 @@ import string
 import pandas
 import numpy as np
 
+_PLATE_DICT = {
+        "6": {'n_rows': 2, 'n_cols': 3},  # 6 well
+        "12": {'n_rows': 3, 'n_cols': 4},  # 12 well
+        "24": {'n_rows': 4, 'n_cols': 6},  # 24 well
+        "48": {'n_rows': 6, 'n_cols': 8},  # 48 well
+        "96": {'n_rows': 8, 'n_cols': 12},  # 96 well
+        "384": {'n_rows': 16, 'n_cols': 24},  # 384 well
+        "1536": {'n_rows': 32, 'n_cols': 48},  # 1536 well
+        "3456": {'n_rows': 48, 'n_cols': 72},  # 3456 well
+    }
+
+def plate_df_to_matrix(plate_df):
+    """
+
+    :param plate_df: plate dataframe (i.e., 2-D)
+    :return:  matrix representation
+    """
+    return plate_df.to_numpy()
+
+def flat_df_to_matrix(flat_df,**kw):
+    """
+
+    :param flat_df: flat-file style representation of plte
+    :param kw: passed to flat_to_plate_df
+    :return: matrix-style plate
+    """
+    return plate_df_to_matrix(flat_to_plate_df(flat_df,**kw))
+
 def matrix_to_plate_df(matrix,n_rows=None,n_cols=None):
     """
 
@@ -28,7 +56,9 @@ def matrix_to_plate_df(matrix,n_rows=None,n_cols=None):
     size_rows_final, size_cols_final = matrix.shape
     rows = labels_rows(n=size_rows_final)
     cols = labels_cols(n=size_cols_final)
-    return pandas.DataFrame(matrix,columns=cols,index=rows)
+    df = pandas.DataFrame(matrix,columns=cols,index=rows)
+    df.index.name = "Row"
+    return df
 
 def plate_to_flat_df(df_plate):
     """
@@ -37,7 +67,7 @@ def plate_to_flat_df(df_plate):
     :return: flat dataframe version of df_plae
     """
     df_flat = pandas.melt(df_plate.reset_index(), id_vars="Row",
-                          var_name="Column")
+                          var_name="Column",value_name="Value")
     df_flat.insert(loc=0, column="Well",
                    value=[f"{r}{c}" for r, c in zip(df_flat["Row"],
                                                     df_flat["Column"])])
@@ -92,16 +122,7 @@ def labels_cols(n,leading_zero=None):
             for i in range(1,1+n)]
 
 def plate_to_well_dict():
-    return {
-        "6": {'n_rows': 2, 'n_cols': 3},  # 6 well
-        "12": {'n_rows': 3, 'n_cols': 4},  # 12 well
-        "24": {'n_rows': 4, 'n_cols': 6},  # 24 well
-        "48": {'n_rows': 6, 'n_cols': 8},  # 48 well
-        "96": {'n_rows': 8, 'n_cols': 12},  # 96 well
-        "384": {'n_rows': 16, 'n_cols': 24},  # 384 well
-        "1536": {'n_rows': 32, 'n_cols': 48},  # 1536 well
-        "3456": {'n_rows': 48, 'n_cols': 72},  # 3456 well
-    }
+    return _PLATE_DICT
 
 def plate_row_cols(p):
     """
