@@ -50,7 +50,7 @@ def is_1(v):
     """
     return int_or_none(v) == 1
 
-
+#pylint: disable=too-many-locals
 def _parse_all_plates(df):
     """
 
@@ -68,7 +68,7 @@ def _parse_all_plates(df):
     # (2) the plate
     n_df = len(df)
     i = 1
-    previous_end_row = 0
+    previous_end_row = i
     while i < n_df:
         row = df.iloc[i]
         j = 0
@@ -96,16 +96,22 @@ def _parse_all_plates(df):
                 # advance once row and one column (we know we have at least one well of data)
                 j += 1
                 i += 1
-                while j < n_col and (int_or_none(df.iloc[plate_start_row-1, j]) in allowable_col_labels_int):
+                while j < n_col and \
+                        (int_or_none(df.iloc[plate_start_row-1, j]) in allowable_col_labels_int):
                     j += 1
-                while i < n_df and (df.iloc[i, plate_start_col-1] in allowable_row_labels):
+                while i < n_df and \
+                        (df.iloc[i, plate_start_col-1] in allowable_row_labels):
                     i += 1
                 plate_end_col = j
                 plate_end_row = i
                 plates.append([df.iloc[previous_end_row:plate_start_row],
                                df.iloc[plate_start_row:plate_end_row,
                                plate_start_col:plate_end_col]])
-                previous_end_row = min(n_df-1,plate_end_row + 1)
+                if j < n_col:
+                    # possible there is another plate still; reset the row search
+                    i = previous_end_row
+                else:
+                    previous_end_row = min(n_df-1,plate_end_row + 1)
             else:
                 j += 1
         if plate_start_row is None:
