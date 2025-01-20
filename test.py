@@ -57,7 +57,73 @@ class MyTestCase(unittest.TestCase):
                     assert (m_found == m).all()
                 self.i_sub_test += 1
 
-    def test_01_basic_file_io(self):
+    #pylint: disable=too-many-locals
+    def test_01_pathological_file_io(self):
+        """
+         make sure a bunch of terrible examples give sensible outputs
+        """
+        self.i_sub_test = 0
+        for save,suffix in [[lambda x,*args,**kw : x.to_excel(*args,**kw),".xlsx"],
+                            [lambda x,*args,**kw: x.to_csv(*args,**kw),".csv"]]:
+            with tempfile.NamedTemporaryFile(suffix=suffix) as f:
+                # empty data frame should work
+                save(pandas.DataFrame({}),f.name)
+                with self.subTest(i=self.i_sub_test):
+                    df_flat = plate_io.plate_to_flat(f.name)
+                    assert (len(df_flat["Sheet1"]) == 0)
+                self.i_sub_test += 1
+                # try every size empty plate (just the column labels)
+                for plate_size, plate_dict in utilities.plate_to_well_dict().items():
+                    n_cols, n_rows = plate_dict["n_cols"], plate_dict["n_rows"]
+                    cols = utilities.labels_cols(n_cols)
+                    rows = utilities.labels_rows(n_rows)
+                    # # with empty data and column labels but no row labels, should still be empty
+                    save(pandas.DataFrame({},columns=cols),f.name)
+                    with self.subTest(i=self.i_sub_test,msg=plate_size):
+                        df_flat = plate_io.plate_to_flat(f.name)
+                        assert len(df_flat["Sheet1"]) == 0
+                    self.i_sub_test += 1
+                    # # with empty data but column *and* row labels, should get all nans
+                    all_nans = pandas.DataFrame({}, columns=cols,index=rows)
+                    save(all_nans, f.name)
+                    df_flat = plate_io.plate_to_flat(f.name)
+                    with self.subTest(i=self.i_sub_test,msg=plate_size):
+                        assert len(df_flat["Sheet1"]) == 1
+                    self.i_sub_test += 1
+                    with self.subTest(i=self.i_sub_test,msg=plate_size):
+                        assert np.isnan(df_flat["Sheet1"][0].to_numpy()).all()
+                    self.i_sub_test += 1
+                    # # check that we can get data back properly, even if surrounded by nans
+                    index_array = np.reshape(np.arange(0, (n_cols + 1) * (n_rows + 1)),
+                                             (n_rows + 1, n_cols + 1)).astype(str)
+                    index_array[1:, 0] = rows
+                    index_array[0, 1:] = cols
+                    nan_ones = np.ones_like(index_array,dtype=float) * np.nan
+                    # surround the data in nans and make sure we can still get it
+                    nans_and_data = np.concatenate([
+                        np.concatenate([nan_ones, nan_ones, nan_ones], axis=1),
+                        np.concatenate([nan_ones, index_array, nan_ones],axis=1),
+                        np.concatenate([nan_ones, nan_ones, nan_ones], axis=1),
+                    ])
+                    save(pandas.DataFrame(nans_and_data), f.name)
+                    df_flat = plate_io.plate_to_flat(f.name)
+                    # make sure we recover the data
+                    # (note that I ignore the first row and column of index_array
+                    # and cat to float to better compare)
+                    with self.subTest(i=self.i_sub_test,msg=plate_size):
+                        assert len(df_flat["Sheet1"]) == 1
+                    self.i_sub_test += 1
+                    df_here = df_flat['Sheet1'][0]
+                    with self.subTest(i=self.i_sub_test,msg=plate_size):
+                        assert all(df_here.index == rows)
+                        assert all(df_here.columns == cols)
+                    self.i_sub_test += 1
+                    with self.subTest(i=self.i_sub_test,msg=plate_size):
+                        assert (df_here.to_numpy() == index_array[1:,1:].astype(float)).all()
+                    self.i_sub_test += 1
+
+    #pylint: disable=too-many-locals
+    def test_02_basic_file_io(self):
         """
         test basic file io:
 
@@ -152,6 +218,7 @@ class MyTestCase(unittest.TestCase):
             with self.subTest(i=self.i_sub_test,msg=k):
                 assert flat_df_2.equals(flat_df)
             self.i_sub_test += 1
+
 
 def save_multiple_plates_to_same_file(plate_df_colors,file_name):
     """

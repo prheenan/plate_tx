@@ -50,6 +50,35 @@ def is_1(v):
     """
     return int_or_none(v) == 1
 
+def _parse_plate_here(df,plate_start_row,plate_start_col):
+    # need to find where the plate ends, which is denote by either:
+    # (1) end of dataframe
+    # (2) start of next plate
+    # (3) missing row/column labels (??)
+    max_rows_cols = max(utilities.plate_to_well_dict().items(),
+                        key=lambda e: int(e[0]))[1]
+    allowable_row_labels = \
+        (set(utilities.labels_rows(max_rows_cols["n_rows"])) |
+         set(utilities.labels_rows(max_rows_cols["n_rows"],
+                                   preamble_first_26="")))
+    allowable_col_labels = \
+        set(utilities.labels_cols(max_rows_cols["n_cols"],
+                                  leading_zero=False)) | \
+        set(utilities.labels_cols(max_rows_cols["n_cols"], leading_zero=True))
+    allowable_col_labels_int = {int(s) for s in allowable_col_labels}
+    # advance once row and one column (we know we have at least one well of data)
+    plate_end_col = plate_start_col + 1
+    plate_end_row = plate_start_row + 1
+    n_df = len(df)
+    n_col = len(df.columns)
+    while plate_end_col < n_col and \
+            (int_or_none(df.iloc[plate_start_row - 1, plate_end_col]) in allowable_col_labels_int):
+        plate_end_col += 1
+    while plate_end_row < n_df and \
+            (df.iloc[plate_end_row, plate_start_col - 1] in allowable_row_labels):
+        plate_end_row += 1
+    return plate_end_row,plate_end_col
+
 #pylint: disable=too-many-locals
 def _parse_all_plates(df):
     """
@@ -78,44 +107,25 @@ def _parse_all_plates(df):
             char_here = df.iloc[i, j]
             char_upper_right = df.iloc[i-1, j+1]
             if is_start_row(char_here) and is_1(char_upper_right):
+                # then parse the plate here
                 plate_start_row = i
                 plate_start_col = j + 1
-                # need to find where the plate ends, which is denote by either:
-                # (1) end of dataframe
-                # (2) start of next plate
-                # (3) missing row/column labels (??)
-                max_rows_cols = max(utilities.plate_to_well_dict().items(),
-                                    key=lambda e: int(e[0]))[1]
-                allowable_row_labels = \
-                    (set(utilities.labels_rows(max_rows_cols["n_rows"])) |
-                     set(utilities.labels_rows(max_rows_cols["n_rows"],preamble_first_26="")))
-                allowable_col_labels = \
-                    set(utilities.labels_cols(max_rows_cols["n_cols"],leading_zero=False)) | \
-                    set(utilities.labels_cols(max_rows_cols["n_cols"],leading_zero=True))
-                allowable_col_labels_int = {int(s) for s in allowable_col_labels}
-                # advance once row and one column (we know we have at least one well of data)
-                j += 1
-                i += 1
-                while j < n_col and \
-                        (int_or_none(df.iloc[plate_start_row-1, j]) in allowable_col_labels_int):
-                    j += 1
-                while i < n_df and \
-                        (df.iloc[i, plate_start_col-1] in allowable_row_labels):
-                    i += 1
-                plate_end_col = j
-                plate_end_row = i
+                plate_end_row, plate_end_col = \
+                    _parse_plate_here(df, plate_start_row, plate_start_col)
                 plates.append([df.iloc[previous_end_row:plate_start_row],
                                df.iloc[plate_start_row:plate_end_row,
                                plate_start_col:plate_end_col]])
-                if j < n_col:
-                    # possible there is another plate still; reset the row search
-                    i = previous_end_row
-                else:
-                    previous_end_row = min(n_df-1,plate_end_row + 1)
+                j = plate_end_col
+                previous_end_row = plate_end_row
             else:
                 j += 1
+        # POST: j = n_col-1, so at the end
         if plate_start_row is None:
+            # didn't find a plate on any column, move along
             i += 1
+        else:
+            # did find all the plates, so can move to the end of the plates
+            i = max(i+1,previous_end_row)
     return plates
 
 
