@@ -68,6 +68,10 @@ class MyTestCase(unittest.TestCase):
             all_matrices = [video_k[0,:,:,i] for i in range(3)]
             plate_df_colors = [ utilities.matrix_to_plate_df(m)
                                 for m in all_matrices]
+            all_concat = pandas.concat([p.reset_index() for p in plate_df_colors],
+                                       axis=1)
+            all_concat_reverse = pandas.concat([p.reset_index() for p in plate_df_colors][::-1],
+                                               axis=1)
             matrix = all_matrices[0]
             plate_df = plate_df_colors[0]
             # # first, test that just saving a single matrix works well
@@ -78,33 +82,31 @@ class MyTestCase(unittest.TestCase):
                     self._check_plate_read_expected(f.name,
                                                     sheet_to_matrices={"Sheet1":[matrix]})
             # # next, check that saving multiple dataframes to the same file works
-
             for suffix in [f"_{k}.xlsx",f"_{k}.csv"]:
                 with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                     # saveing out to excel and csv are a littler different
-                    if suffix.endswith(".csv"):
-                        plate_df_colors[0].to_csv(f.name)
-                        for p in plate_df_colors[1:]:
-                            p.to_csv(f.name,mode="a")
-                    else:
-                        plate_df_colors[0].to_excel(f.name)
-                        i_row = len(plate_df_colors[0])+1
-                        for p in plate_df_colors[1:]:
-                            # pylint: disable=abstract-class-instantiated
-                            with pandas.ExcelWriter(f.name, mode="a",engine="openpyxl",
-                                                    if_sheet_exists='overlay') as xlsx:
-                                p.to_excel(xlsx,startrow=i_row)
-                                i_row += len(p) + 1
+                    save_multiple_plates_to_same_file(plate_df_colors=plate_df_colors,
+                                                      file_name=f.name)
                     self._check_plate_read_expected(f.name,
                                                     sheet_to_matrices={"Sheet1":all_matrices})
             # # Check that if we concatenate them column-wise, that also works
-            all_concat = pandas.concat([p.reset_index() for p in plate_df_colors], axis=1)
             for suffix,f_save in [[f"_{k}.csv",all_concat.to_csv],
                                   [f"_{k}.xlsx",all_concat.to_excel]]:
                 with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                     f_save(f.name)
                     self._check_plate_read_expected(f.name,
                                                     sheet_to_matrices={"Sheet1":all_matrices})
+            # # Check that if we have multiple plates on rows and columns, that also works
+            all_concat_mult = [all_concat, all_concat_reverse,all_concat]
+            mat_mult = all_matrices + all_matrices[::-1] + all_matrices
+            for suffix in [f"_{k}.xlsx",f"_{k}.csv"]:
+                with tempfile.NamedTemporaryFile(suffix=suffix) as f:
+                    # saveing out to excel and csv are a littler different
+                    save_multiple_plates_to_same_file(plate_df_colors=all_concat_mult,
+                                                      file_name=f.name)
+                    self._check_plate_read_expected(f.name,
+                                                    sheet_to_matrices={"Sheet1":mat_mult})
+
 
     def test_00_conversions(self):
         """
@@ -135,6 +137,35 @@ class MyTestCase(unittest.TestCase):
             with self.subTest(i=self.i_sub_test,msg=k):
                 assert flat_df_2.equals(flat_df)
             self.i_sub_test += 1
+
+def save_multiple_plates_to_same_file(plate_df_colors,file_name):
+    """
+
+    :param plate_df_colors: either list of plates (CSV or XLSX) or dictionary going
+     from sheet name to list of plates (XLSX only)
+    :param file_name:  file to save
+    :return:  nothing
+    """
+    if file_name.endswith(".csv"):
+        plate_df_colors[0].to_csv(file_name)
+        for p in plate_df_colors[1:]:
+            p.to_csv(file_name, mode="a")
+    else:
+        if isinstance(plate_df_colors,list):
+            sheet_to_dfs = {"Sheet1":plate_df_colors}
+        else:
+            sheet_to_dfs = plate_df_colors
+        for sheet,plates_sheet in sheet_to_dfs.items():
+            plates_sheet[0].to_excel(file_name,sheet_name=sheet)
+            # add 1 for header
+            i_row = len(plates_sheet[0]) + 1
+            # pylint: disable=abstract-class-instantiated
+            with pandas.ExcelWriter(file_name, mode="a", engine="openpyxl",
+                                    if_sheet_exists='overlay') as xlsx:
+                for p in plates_sheet[1:]:
+                    p.to_excel(xlsx, startrow=i_row,sheet_name=sheet)
+                    # add 1 for header
+                    i_row += len(p) + 1
 
 if __name__ == '__main__':
     unittest.main()
