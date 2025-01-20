@@ -15,7 +15,7 @@ class MyTestCase(unittest.TestCase):
     """
     def __init__(self,*args,**kwargs):
         """
-        Intialization (blank)
+        Intialization
         """
         super().__init__(*args,**kwargs)
         self.i_sub_test = 0
@@ -53,7 +53,8 @@ class MyTestCase(unittest.TestCase):
             for i,m in enumerate(matrices):
                 with self.subTest(i=self.i_sub_test, msg=file_name):
                     # make sure the data we read back in is correct
-                    assert (sheet_to_dfs[sheet_name][i].to_numpy() == m).all()
+                    m_found = sheet_to_dfs[sheet_name][i].to_numpy()
+                    assert (m_found == m).all()
                 self.i_sub_test += 1
 
     def test_01_basic_file_io(self):
@@ -72,6 +73,11 @@ class MyTestCase(unittest.TestCase):
                                        axis=1)
             all_concat_reverse = pandas.concat([p.reset_index() for p in plate_df_colors][::-1],
                                                axis=1)
+            all_concat_mult = [all_concat, all_concat_reverse,all_concat]
+            mat_mult = all_matrices + all_matrices[::-1] + all_matrices
+            # make a reversed version
+            all_concat_mult_v2 = [all_concat_reverse,all_concat,all_concat_reverse]
+            mat_mult_v2 =  all_matrices[::-1] + all_matrices + all_matrices[::-1]
             matrix = all_matrices[0]
             plate_df = plate_df_colors[0]
             # # first, test that just saving a single matrix works well
@@ -97,8 +103,6 @@ class MyTestCase(unittest.TestCase):
                     self._check_plate_read_expected(f.name,
                                                     sheet_to_matrices={"Sheet1":all_matrices})
             # # Check that if we have multiple plates on rows and columns, that also works
-            all_concat_mult = [all_concat, all_concat_reverse,all_concat]
-            mat_mult = all_matrices + all_matrices[::-1] + all_matrices
             for suffix in [f"_{k}.xlsx",f"_{k}.csv"]:
                 with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                     # saveing out to excel and csv are a littler different
@@ -106,6 +110,17 @@ class MyTestCase(unittest.TestCase):
                                                       file_name=f.name)
                     self._check_plate_read_expected(f.name,
                                                     sheet_to_matrices={"Sheet1":mat_mult})
+            # # Multiple plates on rows and columns and multiple sheets, still works (just for XLSX)
+            with tempfile.NamedTemporaryFile(suffix=f"_{k}.xlsx") as f:
+                save_multiple_plates_to_same_file(plate_df_colors={"Sheet1":all_concat_mult,
+                                                                   "Sheet2":all_concat_mult_v2,
+                                                                   "Sheet3":all_concat_mult},
+                                                  file_name=f.name)
+                self._check_plate_read_expected(f.name,
+                                                sheet_to_matrices={
+                                                    "Sheet1": mat_mult,
+                                                    "Sheet2":mat_mult_v2,
+                                                    "Sheet3":mat_mult})
 
 
     def test_00_conversions(self):
@@ -155,14 +170,11 @@ def save_multiple_plates_to_same_file(plate_df_colors,file_name):
             sheet_to_dfs = {"Sheet1":plate_df_colors}
         else:
             sheet_to_dfs = plate_df_colors
-        for sheet,plates_sheet in sheet_to_dfs.items():
-            plates_sheet[0].to_excel(file_name,sheet_name=sheet)
-            # add 1 for header
-            i_row = len(plates_sheet[0]) + 1
-            # pylint: disable=abstract-class-instantiated
-            with pandas.ExcelWriter(file_name, mode="a", engine="openpyxl",
-                                    if_sheet_exists='overlay') as xlsx:
-                for p in plates_sheet[1:]:
+        # pylint: disable=abstract-class-instantiated
+        with pandas.ExcelWriter(file_name, engine="openpyxl") as xlsx:
+            for sheet,plates_sheet in sheet_to_dfs.items():
+                i_row = 0
+                for p in plates_sheet:
                     p.to_excel(xlsx, startrow=i_row,sheet_name=sheet)
                     # add 1 for header
                     i_row += len(p) + 1
