@@ -118,9 +118,33 @@ class MyTestCase(unittest.TestCase):
                         assert all(df_here.index == rows)
                         assert all(df_here.columns == cols)
                     self.i_sub_test += 1
+                    just_data = index_array[1:,1:].astype(float)
                     with self.subTest(i=self.i_sub_test,msg=plate_size):
-                        assert (df_here.to_numpy() == index_array[1:,1:].astype(float)).all()
+                        assert (df_here.to_numpy() == just_data).all()
                     self.i_sub_test += 1
+                    # Make sure multiple sheets works
+                    index_array_v2 = np.reshape(np.arange(0, (n_cols + 1) * (n_rows + 1)),
+                                                (n_rows + 1, n_cols + 1)).astype(str)
+                    index_array_v2 = index_array_v2[::-1]
+                    index_array_v2[1:, 0] = rows
+                    index_array_v2[0, 1:] = cols
+                    just_data_v2 = index_array_v2[1:,1:].astype(float)
+                    nans_and_data_v2 = np.concatenate([
+                        np.concatenate([index_array, nan_ones, nan_ones], axis=1),
+                        np.concatenate([nan_ones, index_array, index_array_v2],axis=1),
+                        np.concatenate([index_array_v2, index_array_v2, index_array], axis=1),
+                    ])
+                    save(pandas.DataFrame(nans_and_data_v2), f.name)
+                    df_flat_v2 = plate_io.plate_to_flat(f.name)
+                    expected = [just_data,just_data,just_data_v2,just_data_v2,
+                                just_data_v2,just_data]
+                    with self.subTest(i=self.i_sub_test, msg=plate_size):
+                        assert len(df_flat_v2['Sheet1']) == len(expected)
+                    self.i_sub_test += 1
+                    with self.subTest(i=self.i_sub_test, msg=plate_size):
+                        for exp, s in zip(expected,df_flat_v2['Sheet1']):
+                            assert (exp == s.to_numpy()).all()
+                        self.i_sub_test += 1
 
     #pylint: disable=too-many-locals
     def test_02_basic_file_io(self):

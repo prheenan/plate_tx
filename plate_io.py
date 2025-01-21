@@ -57,26 +57,29 @@ def _parse_plate_here(df,plate_start_row,plate_start_col):
     # (3) missing row/column labels (??)
     max_rows_cols = max(utilities.plate_to_well_dict().items(),
                         key=lambda e: int(e[0]))[1]
-    allowable_row_labels = \
-        (set(utilities.labels_rows(max_rows_cols["n_rows"])) |
-         set(utilities.labels_rows(max_rows_cols["n_rows"],
-                                   preamble_first_26="")))
-    allowable_col_labels = \
-        set(utilities.labels_cols(max_rows_cols["n_cols"],
-                                  leading_zero=False)) | \
-        set(utilities.labels_cols(max_rows_cols["n_cols"], leading_zero=True))
-    allowable_col_labels_int = {int(s) for s in allowable_col_labels}
+    n_max_rows, n_max_cols = max_rows_cols["n_rows"], max_rows_cols["n_cols"]
+    row_options = [utilities.labels_rows(n_max_rows),
+                   utilities.labels_rows(n_max_rows,
+                                         preamble_first_26="")]
+    col_options = [utilities.labels_cols(n_max_cols,leading_zero=False),
+                   utilities.labels_cols(n_max_cols, leading_zero=True)]
+    ordered_rows = [ {e[i] for e in row_options} for i in range(n_max_rows)]
+    ordered_cols = [ {int(e[j]) for e in col_options} for j in range(n_max_cols)]
     # advance once row and one column (we know we have at least one well of data)
     plate_end_col = plate_start_col + 1
     plate_end_row = plate_start_row + 1
     n_df = len(df)
     n_col = len(df.columns)
-    while plate_end_col < n_col and \
-            (int_or_none(df.iloc[plate_start_row - 1, plate_end_col]) in allowable_col_labels_int):
+    i_col = 1
+    while plate_end_col < n_col and i_col < n_max_cols and \
+            (int_or_none(df.iloc[plate_start_row - 1, plate_end_col]) in ordered_cols[i_col]):
         plate_end_col += 1
-    while plate_end_row < n_df and \
-            (df.iloc[plate_end_row, plate_start_col - 1] in allowable_row_labels):
+        i_col += 1
+    j_row = 1
+    while plate_end_row < n_df and j_row < n_max_rows and \
+            (df.iloc[plate_end_row, plate_start_col - 1] in ordered_rows[j_row]):
         plate_end_row += 1
+        j_row += 1
     return plate_end_row,plate_end_col
 
 #pylint: disable=too-many-locals
@@ -112,9 +115,10 @@ def _parse_all_plates(df):
                 plate_start_col = j + 1
                 plate_end_row, plate_end_col = \
                     _parse_plate_here(df, plate_start_row, plate_start_col)
-                plates.append([df.iloc[previous_end_row:plate_start_row],
-                               df.iloc[plate_start_row:plate_end_row,
-                               plate_start_col:plate_end_col]])
+                plate_header = df.iloc[previous_end_row:plate_start_row]
+                plate_data = df.iloc[plate_start_row:plate_end_row,
+                             plate_start_col:plate_end_col]
+                plates.append([plate_header,plate_data])
                 j = plate_end_col
                 previous_end_row = plate_end_row
             else:
