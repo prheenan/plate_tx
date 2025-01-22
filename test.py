@@ -5,6 +5,7 @@ import unittest
 import tempfile
 import pandas
 import numpy as np
+from numpy.random import randint
 import video
 import utilities
 import plate_io
@@ -58,7 +59,7 @@ class MyTestCase(unittest.TestCase):
                 self.i_sub_test += 1
 
     #pylint: disable=too-many-locals
-    def test_01_pathological_file_io(self):
+    def test_98_pathological_file_io(self):
         """
          make sure a bunch of terrible examples give sensible outputs
         """
@@ -146,8 +147,9 @@ class MyTestCase(unittest.TestCase):
                             assert (exp == s.to_numpy()).all()
                         self.i_sub_test += 1
 
+
     #pylint: disable=too-many-locals
-    def test_02_basic_file_io(self):
+    def test_99_basic_file_io(self):
         """
         test basic file io:
 
@@ -242,6 +244,81 @@ class MyTestCase(unittest.TestCase):
             with self.subTest(i=self.i_sub_test,msg=k):
                 assert flat_df_2.equals(flat_df)
             self.i_sub_test += 1
+
+    def test_01_headers(self):
+        """
+        test that the header reading goes well
+        """
+        np.random.seed(42)
+        self.i_sub_test = 0
+        for save,suffix in [[lambda x,*args,**kw : x.to_excel(*args,**kw),".xlsx"],
+                            [lambda x,*args,**kw: x.to_csv(*args,**kw),".csv"]]:
+            with tempfile.NamedTemporaryFile(suffix=suffix) as f:
+                for plate_size, plate_dict in utilities.plate_to_well_dict().items():
+                    n_cols, n_rows = plate_dict["n_cols"], plate_dict["n_rows"]
+                    cols = utilities.labels_cols(n_cols)
+                    rows = utilities.labels_rows(n_rows)
+                    index_array = np.reshape(np.arange(0, (n_cols + 1) * (n_rows + 1)),
+                                             (n_rows + 1, n_cols + 1)).astype(str)
+                    index_array[1:, 0] = rows
+                    index_array[0, 1:] = cols
+                    just_data_df = pandas.DataFrame(index_array[1:,1:],columns=cols)
+                    just_data_df.index = rows
+                    nan_ones = np.ones_like(index_array, dtype=float) * np.nan
+                    # surround the data in nans and make sure we can still get it
+                    nans_and_data = np.concatenate([
+                        np.concatenate([nan_ones, index_array, nan_ones], axis=1),
+                    ])
+                    for n_rows in [1, 2, 3, 9, 0]:
+                        n_cols_data = nans_and_data.shape[1]
+                        header = randint(0, 100,size=(n_rows,n_cols_data))
+                        # # try with just a single header
+                        nans_and_data_and_header = \
+                            np.concatenate([header,nans_and_data],axis=0)
+                        save(pandas.DataFrame(nans_and_data_and_header), f.name,
+                             index=False)
+                        df_flat = plate_io.plate_to_flat(f.name,file_type="plate_and_header")
+                        with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
+                            assert len(df_flat['Sheet1']) == 1
+                        self.i_sub_test += 1
+                        found_header, found_data = df_flat['Sheet1'][0]
+                        with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
+                            assert (found_header.to_numpy(dtype=float) == header.astype(float)).all()
+                        self.i_sub_test += 1
+                        with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
+                            assert found_data.astype(float).equals(just_data_df.astype(float))
+                        self.i_sub_test += 1
+                        # # try with multiple different headers
+                        header_v2 = randint(0, 100,size=(n_rows,n_cols_data))
+                        header_v3 = randint(0, 100,size=(n_rows,n_cols_data))
+                        nans_and_data_and_header_multi = \
+                            np.concatenate([header,nans_and_data, # has header
+                                            nans_and_data, # no header
+                                            header_v2,nans_and_data, # v2 header
+                                            header_v3,nans_and_data, # v3 header
+                                            nans_and_data # no header
+                                            ],axis=0)
+                        save(pandas.DataFrame(nans_and_data_and_header_multi), f.name,
+                             index=False)
+                        df_flat_multi = plate_io.plate_to_flat(f.name,file_type="plate_and_header")
+                        # second and last headers are empty
+                        empty_header = np.ones(shape=(0,n_cols_data),dtype=float)
+                        expected_header = [header,
+                                           empty_header,
+                                           header_v2,
+                                           header_v3,
+                                           empty_header]
+                        with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
+                            assert len(df_flat_multi['Sheet1']) == len(expected_header)
+                        self.i_sub_test += 1
+                        for i,expected in enumerate(expected_header):
+                            found_header, found_data = df_flat_multi['Sheet1'][i]
+                            with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
+                                assert (found_header.to_numpy(dtype=float) == expected.astype(float)).all()
+                            self.i_sub_test += 1
+                            with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
+                                assert found_data.astype(float).equals(just_data_df.astype(float))
+                            self.i_sub_test += 1
 
 
 def save_multiple_plates_to_same_file(plate_df_colors,file_name):

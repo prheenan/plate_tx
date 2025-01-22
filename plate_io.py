@@ -14,10 +14,15 @@ def return_plate_no_header(_,matrix):
     """
     return utilities.matrix_to_plate_df(matrix)
 
+def return_plate_and_header(header,matrix):
+    return header, return_plate_no_header(header,matrix)
+
 
 PLATE_PARAMS = {
     "default": {'kw_read': {},
                 'f_header_matrix_to_plate': return_plate_no_header},
+    "plate_and_header": {'kw_read': {},
+                         'f_header_matrix_to_plate': return_plate_and_header},
 
 }
 
@@ -134,7 +139,8 @@ def _parse_all_plates(df):
                 plate_start_col = j + 1
                 plate_end_row, plate_end_col = \
                     _parse_plate_here(df, plate_start_row, plate_start_col)
-                plate_header = df.iloc[previous_end_row:plate_start_row]
+                # header starts one row back
+                plate_header = df.iloc[previous_end_row:plate_start_row-1]
                 plate_data = df.iloc[plate_start_row:plate_end_row,
                              plate_start_col:plate_end_col]
                 plates.append([plate_header,plate_data])
