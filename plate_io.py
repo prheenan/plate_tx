@@ -4,23 +4,42 @@ Defining how to read plate files
 import pandas
 import utilities
 
-def _read_xlsx_as_dict_of_df(file_name):
+
+def return_plate_no_header(_,matrix):
+    """
+
+    :param _: header (ignored)
+    :param matrix:  2D matrix
+    :return: matrix-as-plate
+    """
+    return utilities.matrix_to_plate_df(matrix)
+
+
+PLATE_PARAMS = {
+    "default": {'kw_read': {},
+                'f_header_matrix_to_plate': return_plate_no_header},
+
+}
+
+
+def _read_xlsx_as_dict_of_df(file_name,**kw):
     """
 
     :param file_name: XLSX file
+    :param kw: passed to pandas.read_excel
     :return: dictionary of data frames to parse for data
     """
-    return pandas.read_excel(file_name,sheet_name=None,header=None)
+    return pandas.read_excel(file_name,sheet_name=None,header=None,**kw)
 
-def _read_text_as_dict_of_df(file_name,_):
+def _read_text_as_dict_of_df(file_name,**kw):
     """
 
     :param file_name: CSV file
-    :param _:  this will be the file type eventually
+    :param kw: passed to pandas.read_csv
     :return: dictionary giving Value ad key and dataframe as value
     """
     # just one here
-    return {"Sheet1":pandas.read_csv(file_name,header=None)}
+    return {"Sheet1":pandas.read_csv(file_name,header=None,**kw)}
 
 
 def is_start_row(v):
@@ -133,20 +152,25 @@ def _parse_all_plates(df):
     return plates
 
 
-def plate_to_flat(file_name,file_type=None):
+def plate_to_flat(file_name,file_type="default"):
     """
 
     :param file_name: file name to read in
     :param file_type: type of file this is to parse
     :return:  depends on file type
     """
+    if file_type not in PLATE_PARAMS:
+        raise ValueError(f"Did not understand {file_type}")
+    params = PLATE_PARAMS[file_type]
+    kw_read = params["kw_read"]
     if file_name.endswith(".xlsx") or file_name.endswith(".xls"):
-        dict_of_df = _read_xlsx_as_dict_of_df(file_name)
+        dict_of_df = _read_xlsx_as_dict_of_df(file_name,**kw_read)
     else:
-        dict_of_df = _read_text_as_dict_of_df(file_name,file_type)
-    parsed_headers_plates = { k:_parse_all_plates(v) for k,v in dict_of_df.items()}
+        dict_of_df = _read_text_as_dict_of_df(file_name,**kw_read)
+    parsed_headers_plates = { k:_parse_all_plates(v)
+                              for k,v in dict_of_df.items()}
     # for now, jut convert the plates into dataframes and ignore the header
-    flat_files = {k:[utilities.matrix_to_plate_df(plate)
-                     for header,plate in header_plates]
+    f_to_plate = params['f_header_matrix_to_plate']
+    flat_files = {k:[f_to_plate(header,matrix) for header,matrix in header_plates]
                   for k,header_plates in parsed_headers_plates.items()}
     return flat_files
