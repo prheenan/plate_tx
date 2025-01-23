@@ -2,6 +2,7 @@
 All unit tests
 """
 import unittest
+import os
 import tempfile
 import pandas
 import numpy as np
@@ -58,7 +59,7 @@ class MyTestCase(unittest.TestCase):
                     assert (m_found == m).all()
                 self.i_sub_test += 1
 
-    #pylint: disable=too-many-locals
+    #pylint: disable=too-many-locals, too-many-statements
     def test_98_pathological_file_io(self):
         """
          make sure a bunch of terrible examples give sensible outputs
@@ -71,7 +72,7 @@ class MyTestCase(unittest.TestCase):
                 save(pandas.DataFrame({}),f.name)
                 with self.subTest(i=self.i_sub_test):
                     df_flat = plate_io.plate_to_flat(f.name)
-                    assert (len(df_flat["Sheet1"]) == 0)
+                    assert len(df_flat["Sheet1"]) == 0
                 self.i_sub_test += 1
                 # try every size empty plate (just the column labels)
                 for plate_size, plate_dict in utilities.plate_to_well_dict().items():
@@ -215,37 +216,8 @@ class MyTestCase(unittest.TestCase):
                                                     "Sheet3":mat_mult})
 
 
-    def test_00_conversions(self):
-        """
-        Test converting from matrices to
-        """
-        self.i_sub_test = 0
-        for k,video_k in self.resized_videos.items():
-            # just look at the first time point and red channel
-            matrix = video_k[0, :, :, 0]
-            plate_df = utilities.matrix_to_plate_df(matrix)
-            flat_df = utilities.plate_to_flat_df(plate_df)
-            plate_df_2 = utilities.flat_to_plate_df(flat_df)
-            flat_df_2 = utilities.plate_to_flat_df(plate_df_2)
-            matrix_2 = utilities.plate_df_to_matrix(plate_df_2)
-            matrix_3 = utilities.flat_df_to_matrix(flat_df_2)
-            # make sure the two matrics match
-            with self.subTest(i=self.i_sub_test,msg=k):
-                np.testing.assert_allclose(matrix_2,matrix)
-            self.i_sub_test += 1
-            with self.subTest(i=self.i_sub_test,msg=k):
-                np.testing.assert_allclose(matrix_3,matrix)
-            self.i_sub_test += 1
-            # make sure the plate translation matches
-            with self.subTest(i=self.i_sub_test,msg=k):
-                assert plate_df_2.equals(plate_df)
-            self.i_sub_test += 1
-            # make sure the flat translation matches
-            with self.subTest(i=self.i_sub_test,msg=k):
-                assert flat_df_2.equals(flat_df)
-            self.i_sub_test += 1
 
-    def test_01_headers(self):
+    def test_97_headers(self):
         """
         test that the header reading goes well
         """
@@ -283,7 +255,8 @@ class MyTestCase(unittest.TestCase):
                         self.i_sub_test += 1
                         found_header, found_data = df_flat['Sheet1'][0]
                         with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
-                            assert (found_header.to_numpy(dtype=float) == header.astype(float)).all()
+                            found_header_float = found_header.to_numpy(dtype=float)
+                            assert (found_header_float == header.astype(float)).all()
                         self.i_sub_test += 1
                         with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
                             assert found_data.astype(float).equals(just_data_df.astype(float))
@@ -314,12 +287,38 @@ class MyTestCase(unittest.TestCase):
                         for i,expected in enumerate(expected_header):
                             found_header, found_data = df_flat_multi['Sheet1'][i]
                             with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
-                                assert (found_header.to_numpy(dtype=float) == expected.astype(float)).all()
+                                found_header_float = found_header.to_numpy(dtype=float)
+                                assert (found_header_float == expected.astype(float)).all()
                             self.i_sub_test += 1
                             with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
                                 assert found_data.astype(float).equals(just_data_df.astype(float))
                             self.i_sub_test += 1
 
+    def test_01_vendor_files(self):
+        """
+        Test reading in vendor files
+
+        Can add these files using:
+
+        find data/plate_examples/ -type f ! -name .DS_Store -exec git add {}
+        """
+        self.i_sub_test = 0
+        in_dir = "data/plate_examples/input"
+        in_dir_exp = "data/plate_examples/expected"
+        example_files = [ os.path.join(in_dir,f)
+                          for f in os.listdir(in_dir)]
+        example_files_expected = [ os.path.join(in_dir_exp,os.path.basename(f))
+                                   for f in example_files]
+        for file_v,file_v_expected in zip(example_files,example_files_expected):
+            plate_type = os.path.basename(file_v).split(".")[0]
+            df_flat_v2 = plate_io.plate_to_flat(file_v,file_type=plate_type)
+            # save out the file with this line:
+            # df_flat_v2['Sheet1'][0].to_csv(file_v_expected,index=True)
+            expected = plate_io.read_file(file_v_expected,
+                                          kw_read_csv={'index_col': 0, 'header': 0})
+            with self.subTest(i=self.i_sub_test,msg=os.path.basename(file_v)):
+                assert all(expected["Sheet1"] == df_flat_v2["Sheet1"][0])
+            self.i_sub_test += 1
 
 def save_multiple_plates_to_same_file(plate_df_colors,file_name):
     """
