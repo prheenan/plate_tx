@@ -4,6 +4,7 @@ Defining how to read plate files
 import re
 from io import StringIO
 import pandas
+import numpy as np
 import utilities
 
 def return_plate_no_header(_,matrix):
@@ -13,6 +14,21 @@ def return_plate_no_header(_,matrix):
     :param matrix:  2D matrix
     :return: matrix-as-plate
     """
+    return utilities.matrix_to_plate_df(matrix)
+
+def return_plate_or_None_if_all(_,matrix,f_test):
+    """
+
+    :param _:
+    :param matrix:
+    :param f_test:
+    :return:
+    """
+    f_all_vect = np.vectorize(f_test)
+    values = matrix.to_numpy()
+    matrix_vect = f_all_vect(values)
+    if np.all(matrix_vect):
+        return None
     return utilities.matrix_to_plate_df(matrix)
 
 def return_plate_and_header(header,matrix):
@@ -114,6 +130,13 @@ PLATE_PARAMS = {
                                        },
                         'f_header_matrix_to_plate': return_plate_no_header
             },
+    # ENVISION has a special matrix which is all "-" which we want to ignore
+    "DELFIA ENVISION" : {
+            'kw_read_xlsx': {},
+            'kw_read_csv': _KW_CSV,
+            'f_header_matrix_to_plate': lambda *args, **kw:\
+                return_plate_or_None_if_all(*args,f_test = lambda x: str(x).strip() == "-",**kw)
+    },
     "ANALYST GT": { 'kw_read_xlsx': {},
                     'kw_read_csv': {"sep":"\t",
                                    "f_header_until": rows_until_plate_start_spaces,
@@ -367,4 +390,7 @@ def plate_to_flat(file_name,file_type="default"):
     f_to_plate = params['f_header_matrix_to_plate']
     flat_files = {k:[f_to_plate(header,matrix) for header,matrix in header_plates]
                   for k,header_plates in parsed_headers_plates.items()}
+    # don't return plates which are None
+    flat_files = { k:[e for e in list_v if e is not None]
+                   for k,list_v in flat_files.items()}
     return flat_files
