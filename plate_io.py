@@ -24,6 +24,17 @@ def return_plate_and_header(header,matrix):
     """
     return header, return_plate_no_header(header,matrix)
 
+def rows_until_plate_start_spaces(lines,offset=0,**kw):
+    """
+    conveinece function to find start of space-delimited plate
+
+    :param lines: space-delimited lines
+    :param offset:  offset from row
+    :param kw: see rows_until_plate_start
+    :return: see rows_until_plate_start
+    """
+    return rows_until_plate_start(lines,sep=r"\s",offset=offset,**kw)
+
 def rows_until_plate_start(lines,sep=r",",offset=0,**kw):
     """
 
@@ -34,16 +45,27 @@ def rows_until_plate_start(lines,sep=r",",offset=0,**kw):
     :return:  see rows_until_regex
     """
     regex = rf"""^
-            {sep}*  # may have leading separatators
-            [0-9]  # first label may or may not have the separator
             (
-            {sep} # after that, must have separator
+             {sep}  # may have leading separatators
+             [0-9]  # first label may or may not have the separator
+            )?
+            (
+            {sep}+  # after that, must have separator
             [0-9]+
-            )+ # at least two additional labels (but bounded above)
-            {sep}* # may have trailing separators
+            )+      # at least two additional labels (but bounded above)
+            {sep}*  # may have trailing separators
             $
             """
     return rows_until_regex(lines=lines,regex=regex, offset=offset,**kw)
+
+def rows_until_plate_end_spaces(plate_start_rows,lines):
+    """
+
+    :param plate_start_rows: see  rows_until_plate_end
+    :param lines: see rows_until_plate_end
+    :return: see rows_until_plate_end
+    """
+    return  rows_until_plate_end(plate_start_rows,lines,sep=r"\s")
 
 def rows_until_plate_end(plate_start_rows,lines,sep=r","):
     """
@@ -72,6 +94,10 @@ def rows_until_plate_end(plate_start_rows,lines,sep=r","):
 
 # name plated types are from
 # https://sciencecloud-preview.my.site.com/s/article/Assay-Reader-Plate-Formats
+_KW_CSV = {"sep": ",",
+           "f_header_until": rows_until_plate_start,
+           "f_plate_until": rows_until_plate_end}
+
 PLATE_PARAMS = {
     "DEFAULT": {'kw_read_xlsx': {},
                 'kw_read_csv': {},
@@ -81,19 +107,28 @@ PLATE_PARAMS = {
                          'f_header_matrix_to_plate': return_plate_and_header},
     "ANALYST GT": { 'kw_read_xlsx': {},
                     'kw_read_csv': {"sep":"\t",
-                                   "f_header_until": lambda *args,**kw: \
-                                       rows_until_plate_start(*args,sep=r"\s",**kw),
-                                   "f_plate_until": lambda *args,**kw: \
-                                       rows_until_plate_end(*args,sep=r"\s",**kw),
+                                   "f_header_until": rows_until_plate_start_spaces,
+                                   "f_plate_until": rows_until_plate_end_spaces,
                                     },
                    'f_header_matrix_to_plate': return_plate_no_header},
     "BMG LABTECH": {  'kw_read_xlsx': {},
-                      'kw_read_csv': {"sep": ",",
-                                      "f_header_until": rows_until_plate_start,
-                                      "f_plate_until": rows_until_plate_end
+                      'kw_read_csv': _KW_CSV,
+                      'f_header_matrix_to_plate': return_plate_no_header
+                      },
+    "CLARIOSTAR": {  'kw_read_xlsx': {},
+                      'kw_read_csv': {"sep":r"\s+",
+                                      # add a single leading zero to the first line
+                                      'f_join_plate':lambda x: \
+                                          "".join(["0" + l if i ==0 else l
+                                                   for i,l in enumerate(x)]),
+                                   "f_header_until": rows_until_plate_start_spaces,
+                                   "f_plate_until": rows_until_plate_end_spaces
                                       },
                       'f_header_matrix_to_plate': return_plate_no_header
-                      }
+                      },
+    "CSV":{'kw_read_xlsx': {},
+           'kw_read_csv': _KW_CSV,
+           'f_header_matrix_to_plate': return_plate_no_header}
 }
 
 
@@ -125,7 +160,16 @@ def _read_xlsx_as_dict_of_df(file_name,header=None,**kw):
     """
     return pandas.read_excel(file_name,sheet_name=None,header=header,**kw)
 
-def _read_text_as_dict_of_df(file_name,f_header_until=None,
+def join_values(values):
+    """
+
+    :param values: list of strings to join
+    :return: values joined as string
+    """
+    return "".join(values)
+
+#pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+def _read_text_as_dict_of_df(file_name,f_header_until=None,f_join_plate=None,
                              f_plate_until=None,header=None,
                              encoding="utf-8",**kw):
     """
@@ -137,6 +181,8 @@ def _read_text_as_dict_of_df(file_name,f_header_until=None,
     # just one here
     with open(file_name, 'r', encoding=encoding) as f:
         lines = f.readlines()
+    if f_join_plate is None:
+        f_join_plate = join_values
     if f_header_until is None:
         plate_start_rows = []
         plate_end_rows = []
@@ -156,7 +202,7 @@ def _read_text_as_dict_of_df(file_name,f_header_until=None,
         lines_file_arr = [lines]
     df_to_ret = []
     for lines_file,df_header_i in zip(lines_file_arr,df_header_arr):
-        df_no_header = pandas.read_csv(StringIO("".join(lines_file)),
+        df_no_header = pandas.read_csv(StringIO(f_join_plate(lines_file)),
                                        header=header,on_bad_lines="warn",**kw)
         df_to_ret.append(pandas.concat([df_header_i,df_no_header],ignore_index=True))
     return {"Sheet1":pandas.concat(df_to_ret,ignore_index=True)}

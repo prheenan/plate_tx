@@ -313,7 +313,7 @@ class MyTestCase(unittest.TestCase):
             plate_type = os.path.basename(file_v).split(".")[0]
             df_flat_v2 = plate_io.plate_to_flat(file_v,file_type=plate_type)
             # save out the file with this line:
-            # pandas.concat().to_csv(file_v_expected,index=True)
+            # write_plates_as_csv(df_flat_v2["Sheet1"], file_v_expected)
             n_expected = len(df_flat_v2["Sheet1"])
             n_rows =  len(df_flat_v2["Sheet1"][0])
             expected = read_plates_as_csv(file_v_expected, n_expected, n_rows)
