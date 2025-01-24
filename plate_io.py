@@ -105,6 +105,15 @@ PLATE_PARAMS = {
     "PLATE_AND_HEADER": {'kw_read_xlsx': {},
                          'kw_read_csv': {},
                          'f_header_matrix_to_plate': return_plate_and_header},
+    "HCS CELLOMICS" : {'kw_read_xlsx': {},
+                       'kw_read_csv': {"sep": r";",
+                                       "f_header_until": lambda *args,**kw: \
+                                            rows_until_plate_start(*args,sep=r";",**kw),
+                                       "f_plate_until": lambda *args,**kw: \
+                                           rows_until_plate_end(*args,sep=r";",**kw),
+                                       },
+                        'f_header_matrix_to_plate': return_plate_no_header
+            },
     "ANALYST GT": { 'kw_read_xlsx': {},
                     'kw_read_csv': {"sep":"\t",
                                    "f_header_until": rows_until_plate_start_spaces,
