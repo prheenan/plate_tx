@@ -24,7 +24,7 @@ def return_plate_and_header(header,matrix):
     """
     return header, return_plate_no_header(header,matrix)
 
-def rows_until_plate_start(lines,sep=r"\s",offset=0,**kw):
+def rows_until_plate_start(lines,sep=r",",offset=0,**kw):
     """
 
     :param lines: lines
@@ -45,7 +45,7 @@ def rows_until_plate_start(lines,sep=r"\s",offset=0,**kw):
             """
     return rows_until_regex(lines=lines,regex=regex, offset=offset,**kw)
 
-def rows_until_plate_end(plate_start_rows,lines,sep=r"\s"):
+def rows_until_plate_end(plate_start_rows,lines,sep=r","):
     """
 
     :param plate_start_rows: list, length N, of plate starts
@@ -73,19 +73,27 @@ def rows_until_plate_end(plate_start_rows,lines,sep=r"\s"):
 # name plated types are from
 # https://sciencecloud-preview.my.site.com/s/article/Assay-Reader-Plate-Formats
 PLATE_PARAMS = {
-    "default": {'kw_read_xlsx': {},
+    "DEFAULT": {'kw_read_xlsx': {},
                 'kw_read_csv': {},
                 'f_header_matrix_to_plate': return_plate_no_header},
-    "plate_and_header": {'kw_read_xlsx': {},
+    "PLATE_AND_HEADER": {'kw_read_xlsx': {},
                          'kw_read_csv': {},
                          'f_header_matrix_to_plate': return_plate_and_header},
-    "Analyst GT": { 'kw_read_xlsx': {},
+    "ANALYST GT": { 'kw_read_xlsx': {},
                     'kw_read_csv': {"sep":"\t",
-                                   "f_header_until": rows_until_plate_start,
-                                   "f_plate_until": rows_until_plate_end
+                                   "f_header_until": lambda *args,**kw: \
+                                       rows_until_plate_start(*args,sep=r"\s",**kw),
+                                   "f_plate_until": lambda *args,**kw: \
+                                       rows_until_plate_end(*args,sep=r"\s",**kw),
                                     },
                    'f_header_matrix_to_plate': return_plate_no_header},
-
+    "BMG LABTECH": {  'kw_read_xlsx': {},
+                      'kw_read_csv': {"sep": ",",
+                                      "f_header_until": rows_until_plate_start,
+                                      "f_plate_until": rows_until_plate_end
+                                      },
+                      'f_header_matrix_to_plate': return_plate_no_header
+                      }
 }
 
 
@@ -127,16 +135,14 @@ def _read_text_as_dict_of_df(file_name,f_header_until=None,
     :return: dictionary giving Value ad key and dataframe as value
     """
     # just one here
+    with open(file_name, 'r', encoding=encoding) as f:
+        lines = f.readlines()
     if f_header_until is None:
         plate_start_rows = []
         plate_end_rows = []
     else:
-        with open(file_name,'r',encoding=encoding) as f:
-            lines = f.readlines()
-            plate_start_rows = f_header_until(lines)
-            plate_end_rows = f_plate_until(plate_start_rows,lines)
-    with open(file_name, 'r',encoding=encoding) as f:
-        lines = f.readlines()
+        plate_start_rows = f_header_until(lines)
+        plate_end_rows = f_plate_until(plate_start_rows,lines)
     if len(plate_start_rows) > 0:
         df_header_arr = []
         lines_file_arr = []
@@ -152,8 +158,8 @@ def _read_text_as_dict_of_df(file_name,f_header_until=None,
     for lines_file,df_header_i in zip(lines_file_arr,df_header_arr):
         df_no_header = pandas.read_csv(StringIO("".join(lines_file)),
                                        header=header,on_bad_lines="warn",**kw)
-        df_to_ret.append(pandas.concat([df_header_i,df_no_header]))
-    return {"Sheet1":pandas.concat(df_to_ret)}
+        df_to_ret.append(pandas.concat([df_header_i,df_no_header],ignore_index=True))
+    return {"Sheet1":pandas.concat(df_to_ret,ignore_index=True)}
 
 
 def is_start_row(v):
@@ -293,9 +299,9 @@ def plate_to_flat(file_name,file_type="default"):
     :param file_type: type of file this is to parse
     :return:  depends on file type
     """
-    if file_type not in PLATE_PARAMS:
+    if file_type.upper() not in PLATE_PARAMS:
         raise ValueError(f"Did not understand {file_type}")
-    params = PLATE_PARAMS[file_type]
+    params = PLATE_PARAMS[file_type.upper()]
     kw_read_xlsx = params["kw_read_xlsx"]
     kw_read_csv = params["kw_read_csv"]
     dict_of_df = read_file(file_name,

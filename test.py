@@ -313,12 +313,14 @@ class MyTestCase(unittest.TestCase):
             plate_type = os.path.basename(file_v).split(".")[0]
             df_flat_v2 = plate_io.plate_to_flat(file_v,file_type=plate_type)
             # save out the file with this line:
-            # df_flat_v2['Sheet1'][0].to_csv(file_v_expected,index=True)
-            expected = plate_io.read_file(file_v_expected,
-                                          kw_read_csv={'index_col': 0, 'header': 0})
-            with self.subTest(i=self.i_sub_test,msg=os.path.basename(file_v)):
-                assert all(expected["Sheet1"] == df_flat_v2["Sheet1"][0])
-            self.i_sub_test += 1
+            # pandas.concat().to_csv(file_v_expected,index=True)
+            n_expected = len(df_flat_v2["Sheet1"])
+            n_rows =  len(df_flat_v2["Sheet1"][0])
+            expected = read_plates_as_csv(file_v_expected, n_expected, n_rows)
+            for s,s_expected in zip(df_flat_v2["Sheet1"],expected):
+                with self.subTest(i=self.i_sub_test,msg=os.path.basename(file_v)):
+                    assert all(s_expected == s)
+                self.i_sub_test += 1
 
 def save_multiple_plates_to_same_file(plate_df_colors,file_name):
     """
@@ -345,6 +347,37 @@ def save_multiple_plates_to_same_file(plate_df_colors,file_name):
                     p.to_excel(xlsx, startrow=i_row,sheet_name=sheet)
                     # add 1 for header
                     i_row += len(p) + 1
+
+
+def write_plates_as_csv(dfs,file_v_expected):
+    """
+
+    :param dfs: list of data frames
+    :param file_v_expected:  where to write
+    :return:  nothing, write all dataframes to csv
+    """
+    dfs[0].to_csv(file_v_expected, index=True)
+    if len(dfs) > 1:
+        for d in dfs[1:]:
+            d.to_csv(file_v_expected, index=True, mode="a")
+
+def read_plates_as_csv(file_v_expected,n_expected,n_rows):
+    """
+
+    :param file_v_expected: names of file
+    :param n_expected:  how many plates we expect
+    :param n_rows: how many rows per plate
+    :return: list, length N, element is a single plate
+    """
+    df_expected = []
+    i_offset = 0
+    for _ in range(n_expected):
+        df_here = pandas.read_csv(file_v_expected, index_col=0,
+                                  nrows=n_rows, skiprows=i_offset)
+        # +1 comes from the extra header row
+        i_offset += n_rows + 1
+        df_expected.append(df_here)
+    return df_expected
 
 if __name__ == '__main__':
     unittest.main()
