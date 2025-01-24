@@ -24,6 +24,28 @@ def return_plate_and_header(header,matrix):
     """
     return header, return_plate_no_header(header,matrix)
 
+def rows_until_plate_start(lines,sep=r"\s",offset=0,**kw):
+    """
+
+    :param lines: lines
+    :param sep:  separarator
+    :param offset: offset to return from the line index that matches
+    :param kw: passed to rows_until_regex
+    :return:  see rows_until_regex
+    """
+    regex = rf"""^
+            {sep}*  # may have leading separatators
+            [0-9]  # first label may or may not have the separator
+            (
+            {sep} # after that, must have separator
+            [0-9]+
+            )+ # at least two additional labels (but bounded above)
+            {sep}* # may have trailing separators
+            $
+            """
+    return rows_until_regex(lines=lines,regex=regex, offset=offset,**kw)
+
+
 # name plated types are from
 # https://sciencecloud-preview.my.site.com/s/article/Assay-Reader-Plate-Formats
 PLATE_PARAMS = {
@@ -35,26 +57,28 @@ PLATE_PARAMS = {
                          'f_header_matrix_to_plate': return_plate_and_header},
     "Analyst GT": { 'kw_read_xlsx': {},
                     'kw_read_csv': {"sep":"\t",
-                                   "f_header_until": lambda f_string: \
-                                       rows_until_regex(f_string,"^Display format:.*?$")},
+                                   "f_header_until": rows_until_plate_start},
                    'f_header_matrix_to_plate': return_plate_no_header},
 
 }
 
-def rows_until_regex(lines,regex):
+
+def rows_until_regex(lines,regex,offset=0):
     """
 
     :param lines: list of N lines
     :param regex:  regex to search
-    :return: how many lines until first occurence of regex (e.g., if on first
-    line then returns 1, second line 2, etc)
+    :param offset: offset return value relative to this
+    :return: how many lines until occurences of regex (e.g., if on first
+    line then returns 1, second line 2, etc). List.
     """
-    pattern = re.compile(regex)
+    pattern = re.compile(regex,re.VERBOSE)
+    to_ret = []
     for i,l in enumerate(lines):
         if pattern.match(l):
-            # index i is this regex, so i+1 rows
-            return i+1
-    return None
+            # index i is this regex, so e.g. i+1 would be number of rows to it
+            to_ret.append(i+offset)
+    return to_ret
 
 
 
@@ -77,23 +101,28 @@ def _read_text_as_dict_of_df(file_name,f_header_until=None,header=None,
     """
     # just one here
     if f_header_until is None:
-        n_rows = None
+        n_rows_arr = []
     else:
         with open(file_name,'r',encoding=encoding) as f:
             lines = f.readlines()
-            n_rows = f_header_until(lines)
+            n_rows_arr = f_header_until(lines)
     with open(file_name, 'r',encoding=encoding) as f:
         lines = f.readlines()
-    if n_rows is not None:
-        df_header = pandas.DataFrame(lines[:n_rows])
-        lines_file = lines[n_rows:]
+    if len(n_rows_arr) > 0:
+        df_header_arr = []
+        lines_file_arr = []
+        for n_row_i in n_rows_arr:
+            df_header_arr.append(pandas.DataFrame(lines[:n_row_i]))
+            lines_file_arr.append(lines[n_row_i:])
     else:
-        df_header = pandas.DataFrame()
-        lines_file = lines
-    df_no_header = pandas.read_csv(StringIO("".join(lines_file)),
-                                   header=header,on_bad_lines="warn",**kw)
-    df_to_ret = pandas.concat([df_header,df_no_header])
-    return {"Sheet1":df_to_ret}
+        df_header_arr = [pandas.DataFrame()]
+        lines_file_arr = [lines]
+    df_to_ret = []
+    for lines_file,df_header_i in zip(lines_file_arr,df_header_arr):
+        df_no_header = pandas.read_csv(StringIO("".join(lines_file)),
+                                       header=header,on_bad_lines="warn",**kw)
+        df_to_ret.append(pandas.concat([df_header_i,df_no_header]))
+    return {"Sheet1":pandas.concat(df_to_ret)}
 
 
 def is_start_row(v):
