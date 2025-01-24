@@ -45,6 +45,30 @@ def rows_until_plate_start(lines,sep=r"\s",offset=0,**kw):
             """
     return rows_until_regex(lines=lines,regex=regex, offset=offset,**kw)
 
+def rows_until_plate_end(plate_start_rows,lines,sep=r"\s"):
+    """
+
+    :param plate_start_rows: list, length N, of plate starts
+    :param lines:  lines to consider
+    :param sep:  separation
+    :return: list, length N, of plate ends
+    """
+    regex_still_plate = rf"""
+                         ^
+                         {sep}*      # possible separation
+                         [A-Z][A-Z]? # row label (1 or two characters, like A or AF)
+                         {sep}+      # separation
+                         """
+    pattern = re.compile(regex_still_plate,re.VERBOSE)
+    n_lines = len(lines)
+    end_rows = []
+    for start_line in plate_start_rows:
+        end_row = start_line + 1
+        while (end_row < n_lines) and pattern.match(lines[end_row]):
+            end_row += 1
+        # POST: at the end of the plate or end of the file
+        end_rows.append(end_row)
+    return end_rows
 
 # name plated types are from
 # https://sciencecloud-preview.my.site.com/s/article/Assay-Reader-Plate-Formats
@@ -57,7 +81,9 @@ PLATE_PARAMS = {
                          'f_header_matrix_to_plate': return_plate_and_header},
     "Analyst GT": { 'kw_read_xlsx': {},
                     'kw_read_csv': {"sep":"\t",
-                                   "f_header_until": rows_until_plate_start},
+                                   "f_header_until": rows_until_plate_start,
+                                   "f_plate_until": rows_until_plate_end
+                                    },
                    'f_header_matrix_to_plate': return_plate_no_header},
 
 }
@@ -91,7 +117,8 @@ def _read_xlsx_as_dict_of_df(file_name,header=None,**kw):
     """
     return pandas.read_excel(file_name,sheet_name=None,header=header,**kw)
 
-def _read_text_as_dict_of_df(file_name,f_header_until=None,header=None,
+def _read_text_as_dict_of_df(file_name,f_header_until=None,
+                             f_plate_until=None,header=None,
                              encoding="utf-8",**kw):
     """
 
@@ -101,19 +128,23 @@ def _read_text_as_dict_of_df(file_name,f_header_until=None,header=None,
     """
     # just one here
     if f_header_until is None:
-        n_rows_arr = []
+        plate_start_rows = []
+        plate_end_rows = []
     else:
         with open(file_name,'r',encoding=encoding) as f:
             lines = f.readlines()
-            n_rows_arr = f_header_until(lines)
+            plate_start_rows = f_header_until(lines)
+            plate_end_rows = f_plate_until(plate_start_rows,lines)
     with open(file_name, 'r',encoding=encoding) as f:
         lines = f.readlines()
-    if len(n_rows_arr) > 0:
+    if len(plate_start_rows) > 0:
         df_header_arr = []
         lines_file_arr = []
-        for n_row_i in n_rows_arr:
-            df_header_arr.append(pandas.DataFrame(lines[:n_row_i]))
-            lines_file_arr.append(lines[n_row_i:])
+        previous_n = 0
+        for n_row_i,n_row_f in zip(plate_start_rows,plate_end_rows):
+            df_header_arr.append(pandas.DataFrame(lines[previous_n:n_row_i]))
+            lines_file_arr.append(lines[n_row_i:n_row_f])
+            previous_n = n_row_f
     else:
         df_header_arr = [pandas.DataFrame()]
         lines_file_arr = [lines]
