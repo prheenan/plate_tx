@@ -120,6 +120,14 @@ def plate_to_flat_df(df_plate):
     df_flat.sort_values(by="Well", inplace=True)
     return df_flat
 
+def key_row_name_list(list_v):
+    """
+
+    :param list_v: list or row names (e.g., A or AF) to get keys for, length N
+    :return: length N, list of keys
+    """
+    return [(len(e), e) for e in list_v]
+
 def flat_to_plate_df(df_flat,col_value="Value"):
     """
 
@@ -127,8 +135,13 @@ def flat_to_plate_df(df_flat,col_value="Value"):
     :param col_value: value column
     :return: e.g. output of matrix_to_plate_df
     """
-    return pandas.pivot_table(df_flat[["Row","Column",col_value]],
-                              index="Row",columns="Column",values=col_value)
+    to_ret = pandas.pivot_table(df_flat[["Row","Column",col_value]],
+                                index="Row",columns="Column",values=col_value)
+    # reorder columns so that 1 is always before 2
+    cols_order = sorted(to_ret.columns,key=int)
+    # reorder rows so that AF is always after P
+    to_ret.sort_index(key=key_row_name_list,inplace=True)
+    return to_ret[cols_order]
 
 def labels_rows(n,preamble_first_26=None,preamble_next_26=None):
     """

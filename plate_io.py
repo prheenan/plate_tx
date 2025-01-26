@@ -138,6 +138,7 @@ def _rows_until_end_by_regex(lines,plate_start_rows,regex_still_plate):
         end_rows.append(end_row)
     return end_rows
 
+#pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def flat_converter(plate,start_row,col_rename,still_row_if,use_col_if=None,
                    start_col=0):
     """
@@ -213,6 +214,24 @@ FLAT_PARAMS = {
                                still_row_if="[A-Z][A-Z]?[0-9][0-9]?",
                                use_col_if=lambda i,c: c != "Well"),
             'f_header_matrix_to_plate': return_plate_no_header
+    },
+    "DELFIA ENVISION FLAT": {
+        'kw_read_xlsx': {},
+        'kw_read_csv': {"sep": r"\s",
+                        # plate starts at A01
+                        "f_header_until": lambda *args, **kw:
+                        rows_until_regex(*args, regex=r"^Plate\s+Well\s+",offset=1, **kw),
+                        "f_plate_until": lambda *args,**kw:
+                        _rows_until_end_by_regex(*args,**kw,
+                                                 regex_still_plate=r"^\d+\s+[A-Z][A-Z]?\d+\s+"),
+                        },
+        'convert_plate_function': lambda plate: \
+            flat_converter(plate, start_row="A01",start_col=1,
+                           col_rename=lambda i, _: f"Value {i}" if i != 1 else "Well",
+                           still_row_if="[A-Z][A-Z]?[0-9][0-9]?",
+                           # Value 0 would be the plate
+                           use_col_if=lambda i, c: c not in ["Well","Value 0"]),
+        'f_header_matrix_to_plate': return_plate_no_header
     }
 }
 
@@ -305,7 +324,7 @@ def join_values(values):
 #pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def _read_text_as_dict_of_df(file_name,f_header_until=None,f_join_plate=None,
                              f_plate_until=None,header=None,
-                             encoding="utf-8",**kw):
+                             encoding="utf-8",engine="python",**kw):
     """
 
     :param file_name: CSV file
@@ -336,8 +355,12 @@ def _read_text_as_dict_of_df(file_name,f_header_until=None,f_join_plate=None,
         lines_file_arr = [lines]
     df_to_ret = []
     for lines_file,df_header_i in zip(lines_file_arr,df_header_arr):
-        df_no_header = pandas.read_csv(StringIO(f_join_plate(lines_file)),
-                                       header=header,on_bad_lines="warn",**kw)
+        try:
+            df_no_header = pandas.read_csv(StringIO(f_join_plate(lines_file)),
+                                           header=header,on_bad_lines="warn",
+                                           engine=engine,**kw)
+        except pandas.errors.EmptyDataError:
+            df_no_header = pandas.DataFrame()
         df_to_ret.append(pandas.concat([df_header_i,df_no_header],ignore_index=True))
     return {"Sheet1":pandas.concat(df_to_ret,ignore_index=True)}
 
