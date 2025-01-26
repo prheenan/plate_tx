@@ -16,7 +16,7 @@ def return_plate_no_header(_,matrix):
     """
     return utilities.matrix_to_plate_df(matrix)
 
-def return_plate_or_None_if_all(_,matrix,f_test):
+def return_plate_or_none_if_all(_,matrix,f_test):
     """
 
     :param _:
@@ -83,6 +83,26 @@ def rows_until_plate_end_spaces(plate_start_rows,lines):
     """
     return  rows_until_plate_end(plate_start_rows,lines,sep=r"\s")
 
+def rows_until_flat_end(plate_start_rows,lines,sep=r";"):
+    """
+
+    :param plate_start_rows: see  output of rows_until_plate_start
+    :param lines:  all lines (headers)
+    :param sep: separation string
+    :return: rows of plate ends, list N
+    """
+    regex_still_plate = rf"""
+                         ^
+                         {sep}*      # possible separation
+                         # well label is :
+                         # (1 or two characters, like A or AF)
+                         # (1 or two digits, like 1 or 01)
+                         # e.g., Well AA01
+                         [A-Z][A-Z]?[0-9][0-9]?
+                         {sep}+      # separation
+                         """
+    return _rows_until_end_by_regex(lines, plate_start_rows, regex_still_plate)
+
 def rows_until_plate_end(plate_start_rows,lines,sep=r","):
     """
 
@@ -97,6 +117,16 @@ def rows_until_plate_end(plate_start_rows,lines,sep=r","):
                          [A-Z][A-Z]? # row label (1 or two characters, like A or AF)
                          {sep}+      # separation
                          """
+    return _rows_until_end_by_regex(lines, plate_start_rows, regex_still_plate)
+
+def _rows_until_end_by_regex(lines,plate_start_rows,regex_still_plate):
+    """
+
+    :param lines: lines to search
+    :param plate_start_rows: rows where plate starts, length N
+    :param regex_still_plate: still a plate while this is true (or not at end)
+    :return:  length N list of row ends
+    """
     pattern = re.compile(regex_still_plate,re.VERBOSE)
     n_lines = len(lines)
     end_rows = []
@@ -108,11 +138,83 @@ def rows_until_plate_end(plate_start_rows,lines,sep=r","):
         end_rows.append(end_row)
     return end_rows
 
+def flat_converter(plate,start_row,col_rename,still_row_if,use_col_if=None,
+                   start_col=0):
+    """
+
+    :param plate: dataframe
+    :param start_row:  what the start cell should look like
+    :param col_rename: function, takes column index and name; returns new column
+    name
+    :param still_row_if: function, takes column index and name; use the
+    row if matches
+    :param use_col_if:  function, takes column index and name; use the
+    column if this is true
+    :param start_col: start column
+    :return:
+    """
+    start_header = 0
+    i = 0
+    pattern_still = re.compile(still_row_if)
+    plates_to_return = []
+    while i < len(plate):
+        if plate.iloc[i,start_col] == start_row:
+            start_idx = i
+            while(i < len(plate) and pattern_still.match(plate.iloc[i,start_col])):
+                i += 1
+            # POST: at end of file or no longer part of plate
+            header = plate.iloc[start_header:start_idx,:]
+            df_flat = plate.iloc[start_idx:i,:]
+            df_flat.columns = [col_rename(i,c)
+                               for i,c in enumerate(df_flat.columns)]
+            if use_col_if is not None:
+                cols_to_use = [c for i,c in enumerate(df_flat.columns)
+                               if use_col_if(i,c) ]
+                df_flat = df_flat[["Well"] + cols_to_use]
+            else:
+                cols_to_use = df_flat.columns
+            if "Well" not in df_flat.columns:
+                raise ValueError("Must specify well")
+            df_flat["Well"] = df_flat["Well"].transform(utilities.sanitize_well)
+            df_flat["Row"] = df_flat["Well"].transform(utilities.row_from_well)
+            df_flat["Column"] = df_flat["Well"].transform(utilities.column_from_well)
+            for c in cols_to_use:
+                df_plate = utilities.flat_to_plate_df(df_flat[["Row","Column",c]],col_value=c)
+                # reset so that the rows and indcies are just in the data
+                df_plate_reset = df_plate.reset_index().T.reset_index().T
+                # adjust the header columns
+                max_len = min(len(header.columns),len(df_plate_reset.columns))
+                header.columns = df_plate_reset.columns[:max_len]
+                plates_to_return.append(pandas.concat([header,df_plate_reset]))
+            start_header = i
+        else:
+            i += 1
+    return pandas.concat(plates_to_return)
+
+
 # name plated types are from
 # https://sciencecloud-preview.my.site.com/s/article/Assay-Reader-Plate-Formats
-_KW_CSV = {"sep": ",",
+_KW_CSV = {"sep": r",",
            "f_header_until": rows_until_plate_start,
            "f_plate_until": rows_until_plate_end}
+
+FLAT_PARAMS = {
+    "BMG PHERASTAR": {
+            'kw_read_xlsx': {},
+            'kw_read_csv': {"sep": ";",
+                            # plate starts at A01
+                            "f_header_until": lambda *args,**kw:
+                                rows_until_regex(*args,regex=r"^\s*A0?1;\s+",**kw),
+                            "f_plate_until": rows_until_flat_end,
+                            },
+            'convert_plate_function': lambda plate: \
+                flat_converter(plate,start_row="A01",
+                               col_rename=lambda i,_: f"Value {i}" if i != 0 else "Well",
+                               still_row_if="[A-Z][A-Z]?[0-9][0-9]?",
+                               use_col_if=lambda i,c: c != "Well"),
+            'f_header_matrix_to_plate': return_plate_no_header
+    }
+}
 
 PLATE_PARAMS = {
     "DEFAULT": {'kw_read_xlsx': {},
@@ -135,7 +237,7 @@ PLATE_PARAMS = {
             'kw_read_xlsx': {},
             'kw_read_csv': _KW_CSV,
             'f_header_matrix_to_plate': lambda *args, **kw:\
-                return_plate_or_None_if_all(*args,f_test = lambda x: str(x).strip() == "-",**kw)
+                return_plate_or_none_if_all(*args,f_test = lambda x: str(x).strip() == "-",**kw)
     },
     "ANALYST GT": { 'kw_read_xlsx': {},
                     'kw_read_csv': {"sep":"\t",
@@ -219,8 +321,8 @@ def _read_text_as_dict_of_df(file_name,f_header_until=None,f_join_plate=None,
         plate_start_rows = []
         plate_end_rows = []
     else:
-        plate_start_rows = f_header_until(lines)
-        plate_end_rows = f_plate_until(plate_start_rows,lines)
+        plate_start_rows = f_header_until(lines=lines)
+        plate_end_rows = f_plate_until(plate_start_rows=plate_start_rows,lines=lines)
     if len(plate_start_rows) > 0:
         df_header_arr = []
         lines_file_arr = []
@@ -377,14 +479,16 @@ def plate_to_flat(file_name,file_type="default"):
     :param file_type: type of file this is to parse
     :return:  depends on file type
     """
-    if file_type.upper() not in PLATE_PARAMS:
+    if file_type.upper() not in (PLATE_PARAMS | FLAT_PARAMS):
         raise ValueError(f"Did not understand {file_type}")
-    params = PLATE_PARAMS[file_type.upper()]
+    params = (PLATE_PARAMS | FLAT_PARAMS)[file_type.upper()]
     kw_read_xlsx = params["kw_read_xlsx"]
     kw_read_csv = params["kw_read_csv"]
     dict_of_df = read_file(file_name,
                            kw_read_xlsx=kw_read_xlsx,kw_read_csv=kw_read_csv)
-    parsed_headers_plates = { k:_parse_all_plates(v)
+    convert_f = params["convert_plate_function"] \
+                if "convert_plate_function" in params else lambda x: x
+    parsed_headers_plates = { k:_parse_all_plates(convert_f(v))
                               for k,v in dict_of_df.items()}
     # for now, jut convert the plates into dataframes and ignore the header
     f_to_plate = params['f_header_matrix_to_plate']

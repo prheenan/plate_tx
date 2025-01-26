@@ -2,6 +2,7 @@
 General utilities
 """
 import string
+import re
 import pandas
 import numpy as np
 
@@ -15,6 +16,50 @@ _PLATE_DICT = {
         "1536": {'n_rows': 32, 'n_cols': 48},  # 1536 well
         "3456": {'n_rows': 48, 'n_cols': 72},  # 3456 well
     }
+
+pattern_row_col = re.compile(r"(?P<row>[A-Z][A-Z]?)(?P<column>\d\d?)")
+
+def _group_from_well(str_v,group):
+    """
+
+    :param str_v: string
+    :param group:  name of group to get, from pattern_row_col regex
+    :return: either row or column
+    """
+    match = pattern_row_col.search(str_v)
+    if match is None:
+        return None
+    return match.group(group)
+
+def row_from_well(s):
+    """
+
+    :param s: well name, like A01
+    :return: row, like A
+    """
+    return _group_from_well(s,"row")
+
+def column_from_well(s):
+    """
+
+    :param s: well name, like A01
+    :return:  column, like 01
+    """
+    return _group_from_well(s,"column")
+
+def sanitize_well(s):
+    """
+
+    :param s: well
+    :return: sanitized well
+    """
+    match = pattern_row_col.search(s)
+    if match is None:
+        return None
+    # POST: have a match
+    row = match.group('row')
+    return f"{row}{int(match.group('column')):02d}"
+
 
 def plate_df_to_matrix(plate_df):
     """
