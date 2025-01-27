@@ -140,7 +140,7 @@ def _rows_until_end_by_regex(lines,plate_start_rows,regex_still_plate):
 
 #pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def flat_converter(plate,start_row,col_rename,still_row_if,use_col_if=None,
-                   start_col=0):
+                   start_col=None):
     """
 
     :param plate: dataframe
@@ -154,23 +154,37 @@ def flat_converter(plate,start_row,col_rename,still_row_if,use_col_if=None,
     :param start_col: start column
     :return:
     """
+    if start_col is None:
+        start_col = 0
     start_header = 0
-    i = 0
     pattern_still = re.compile(still_row_if)
     plates_to_return = []
+    if isinstance(start_col, str):
+        # find the start column
+        start_col_index = None
+        for i, row in plate.iterrows():
+            for j, e in enumerate(row):
+                if e == start_col:
+                    start_col_index = j
+        if start_col_index is None:
+            raise ValueError(f"Couldn't find column like {start_col}")
+    else:
+        # not a string, ass
+        start_col_index = start_col
+    i = 0
     while i < len(plate):
-        if plate.iloc[i,start_col] == start_row:
+        if plate.iloc[i,start_col_index] == start_row:
             start_idx = i
-            while(i < len(plate) and pattern_still.match(plate.iloc[i,start_col])):
+            while(i < len(plate) and pattern_still.match(plate.iloc[i,start_col_index])):
                 i += 1
             # POST: at end of file or no longer part of plate
             header = plate.iloc[start_header:start_idx,:]
             df_flat = plate.iloc[start_idx:i,:]
-            df_flat.columns = [col_rename(i,c)
-                               for i,c in enumerate(df_flat.columns)]
+            df_flat.columns = [col_rename(i_c,c)
+                               for i_c,c in enumerate(plate.iloc[start_idx-1,:])]
             if use_col_if is not None:
-                cols_to_use = [c for i,c in enumerate(df_flat.columns)
-                               if use_col_if(i,c) ]
+                cols_to_use = [c for i_c,c in enumerate(df_flat.columns)
+                               if use_col_if(i_c,c) ]
                 df_flat = df_flat[["Well"] + cols_to_use]
             else:
                 cols_to_use = df_flat.columns
@@ -192,97 +206,6 @@ def flat_converter(plate,start_row,col_rename,still_row_if,use_col_if=None,
             i += 1
     return pandas.concat(plates_to_return)
 
-
-# name plated types are from
-# https://sciencecloud-preview.my.site.com/s/article/Assay-Reader-Plate-Formats
-_KW_CSV = {"sep": r",",
-           "f_header_until": rows_until_plate_start,
-           "f_plate_until": rows_until_plate_end}
-
-FLAT_PARAMS = {
-    "BMG PHERASTAR": {
-            'kw_read_xlsx': {},
-            'kw_read_csv': {"sep": ";",
-                            # plate starts at A01
-                            "f_header_until": lambda *args,**kw:
-                                rows_until_regex(*args,regex=r"^\s*A0?1;\s+",**kw),
-                            "f_plate_until": rows_until_flat_end,
-                            },
-            'convert_plate_function': lambda plate: \
-                flat_converter(plate,start_row="A01",
-                               col_rename=lambda i,_: f"Value {i}" if i != 0 else "Well",
-                               still_row_if="[A-Z][A-Z]?[0-9][0-9]?",
-                               use_col_if=lambda i,c: c != "Well"),
-            'f_header_matrix_to_plate': return_plate_no_header
-    },
-    "DELFIA ENVISION FLAT": {
-        'kw_read_xlsx': {},
-        'kw_read_csv': {"sep": r"\s",
-                        # plate starts at A01
-                        "f_header_until": lambda *args, **kw:
-                        rows_until_regex(*args, regex=r"^Plate\s+Well\s+",offset=1, **kw),
-                        "f_plate_until": lambda *args,**kw:
-                        _rows_until_end_by_regex(*args,**kw,
-                                                 regex_still_plate=r"^\d+\s+[A-Z][A-Z]?\d+\s+"),
-                        },
-        'convert_plate_function': lambda plate: \
-            flat_converter(plate, start_row="A01",start_col=1,
-                           col_rename=lambda i, _: f"Value {i}" if i != 1 else "Well",
-                           still_row_if="[A-Z][A-Z]?[0-9][0-9]?",
-                           # Value 0 would be the plate
-                           use_col_if=lambda i, c: c not in ["Well","Value 0"]),
-        'f_header_matrix_to_plate': return_plate_no_header
-    }
-}
-
-PLATE_PARAMS = {
-    "DEFAULT": {'kw_read_xlsx': {},
-                'kw_read_csv': {},
-                'f_header_matrix_to_plate': return_plate_no_header},
-    "PLATE_AND_HEADER": {'kw_read_xlsx': {},
-                         'kw_read_csv': {},
-                         'f_header_matrix_to_plate': return_plate_and_header},
-    "HCS CELLOMICS" : {'kw_read_xlsx': {},
-                       'kw_read_csv': {"sep": r";",
-                                       "f_header_until": lambda *args,**kw: \
-                                            rows_until_plate_start(*args,sep=r";",**kw),
-                                       "f_plate_until": lambda *args,**kw: \
-                                           rows_until_plate_end(*args,sep=r";",**kw),
-                                       },
-                        'f_header_matrix_to_plate': return_plate_no_header
-            },
-    # ENVISION has a special matrix which is all "-" which we want to ignore
-    "DELFIA ENVISION" : {
-            'kw_read_xlsx': {},
-            'kw_read_csv': _KW_CSV,
-            'f_header_matrix_to_plate': lambda *args, **kw:\
-                return_plate_or_none_if_all(*args,f_test = lambda x: str(x).strip() == "-",**kw)
-    },
-    "ANALYST GT": { 'kw_read_xlsx': {},
-                    'kw_read_csv': {"sep":"\t",
-                                   "f_header_until": rows_until_plate_start_spaces,
-                                   "f_plate_until": rows_until_plate_end_spaces,
-                                    },
-                   'f_header_matrix_to_plate': return_plate_no_header},
-    "BMG LABTECH": {  'kw_read_xlsx': {},
-                      'kw_read_csv': _KW_CSV,
-                      'f_header_matrix_to_plate': return_plate_no_header
-                      },
-    "CLARIOSTAR": {  'kw_read_xlsx': {},
-                      'kw_read_csv': {"sep":r"\s+",
-                                      # add a single leading zero to the first line
-                                      'f_join_plate':lambda x: \
-                                          "".join(["0" + l if i ==0 else l
-                                                   for i,l in enumerate(x)]),
-                                   "f_header_until": rows_until_plate_start_spaces,
-                                   "f_plate_until": rows_until_plate_end_spaces
-                                      },
-                      'f_header_matrix_to_plate': return_plate_no_header
-                      },
-    "CSV":{'kw_read_xlsx': {},
-           'kw_read_csv': _KW_CSV,
-           'f_header_matrix_to_plate': return_plate_no_header}
-}
 
 
 def rows_until_regex(lines,regex,offset=0):
@@ -495,7 +418,7 @@ def read_file(file_name,kw_read_xlsx=None,kw_read_csv=None,**kw):
         dict_of_df = _read_text_as_dict_of_df(file_name,**kw_read_csv)
     return dict_of_df
 
-def plate_to_flat(file_name,file_type="default"):
+def plate_to_flat(file_name,file_type="DEFAULT PLATE"):
     """
 
     :param file_name: file name to read in
@@ -521,3 +444,113 @@ def plate_to_flat(file_name,file_type="default"):
     flat_files = { k:[e for e in list_v if e is not None]
                    for k,list_v in flat_files.items()}
     return flat_files
+
+
+
+
+# name plated types are from
+# https://sciencecloud-preview.my.site.com/s/article/Assay-Reader-Plate-Formats
+_KW_CSV = {"sep": r",",
+           "f_header_until": rows_until_plate_start,
+           "f_plate_until": rows_until_plate_end}
+
+FLAT_PARAMS = {
+    "DEFAULT FLAT": {
+        'kw_read_xlsx': {},
+        'kw_read_csv': {"sep": r",",
+                        # plate starts at A01
+                        "f_header_until": lambda *args, **kw:
+                        rows_until_regex(*args, regex=r",\s*Well\s*,",
+                                         offset=1, **kw),
+                        "f_plate_until": lambda *args, **kw:
+                        _rows_until_end_by_regex(*args, **kw,
+                                                 regex_still_plate=r",\s*[A-Z][A-Z]?\d+\s*,"),
+                        },
+        'convert_plate_function': lambda plate: \
+            flat_converter(plate, start_row="A01", start_col="Well",
+                           col_rename=lambda i,c: c,
+                           still_row_if="[A-Z][A-Z]?[0-9][0-9]?",
+                           # Value 0 would be the plate
+                           use_col_if=lambda i, c: c not in ["Well","Row","Column"]),
+        'f_header_matrix_to_plate': return_plate_no_header
+    },
+    "BMG PHERASTAR": {
+            'kw_read_xlsx': {},
+            'kw_read_csv': {"sep": ";",
+                            # plate starts at A01
+                            "f_header_until": lambda *args,**kw:
+                                rows_until_regex(*args,regex=r"^\s*A0?1;\s+",**kw),
+                            "f_plate_until": rows_until_flat_end,
+                            },
+            'convert_plate_function': lambda plate: \
+                flat_converter(plate,start_row="A01",
+                               col_rename=lambda i,_: f"Value {i}" if i != 0 else "Well",
+                               still_row_if="[A-Z][A-Z]?[0-9][0-9]?",
+                               use_col_if=lambda i,c: c != "Well"),
+            'f_header_matrix_to_plate': return_plate_no_header
+    },
+    "DELFIA ENVISION FLAT": {
+        'kw_read_xlsx': {},
+        'kw_read_csv': {"sep": r"\s",
+                        # plate starts at A01
+                        "f_header_until": lambda *args, **kw:
+                        rows_until_regex(*args, regex=r"^Plate\s+Well\s+",offset=0, **kw),
+                        "f_plate_until": lambda *args,**kw:
+                        _rows_until_end_by_regex(*args,**kw,
+                                                 regex_still_plate=r"^\d+\s+[A-Z][A-Z]?\d+\s+"),
+                        },
+        'convert_plate_function': lambda plate: \
+            flat_converter(plate, start_row="A01",start_col="Well",
+                           col_rename=lambda i, c: f"Value {i}" if c != "Well" else "Well",
+                           still_row_if="[A-Z][A-Z]?[0-9][0-9]?",
+                           # Value 0 would be the plate
+                           use_col_if=lambda i, c: c not in ["Well","Value 0"]),
+        'f_header_matrix_to_plate': return_plate_no_header
+    }
+}
+
+PLATE_PARAMS = {
+    "PLATE_AND_HEADER": {'kw_read_xlsx': {},
+                          'kw_read_csv': {},
+                          'f_header_matrix_to_plate': return_plate_and_header},
+    "DEFAULT PLATE": {'kw_read_xlsx': {},
+                      'kw_read_csv': {},
+                      'f_header_matrix_to_plate': return_plate_no_header},
+    "HCS CELLOMICS" : {'kw_read_xlsx': {},
+                       'kw_read_csv': {"sep": r";",
+                                       "f_header_until": lambda *args,**kw: \
+                                            rows_until_plate_start(*args,sep=r";",**kw),
+                                       "f_plate_until": lambda *args,**kw: \
+                                           rows_until_plate_end(*args,sep=r";",**kw),
+                                       },
+                        'f_header_matrix_to_plate': return_plate_no_header
+            },
+    # ENVISION has a special matrix which is all "-" which we want to ignore
+    "DELFIA ENVISION" : {
+            'kw_read_xlsx': {},
+            'kw_read_csv': _KW_CSV,
+            'f_header_matrix_to_plate': lambda *args, **kw:\
+                return_plate_or_none_if_all(*args,f_test = lambda x: str(x).strip() == "-",**kw)
+    },
+    "ANALYST GT": { 'kw_read_xlsx': {},
+                    'kw_read_csv': {"sep":"\t",
+                                   "f_header_until": rows_until_plate_start_spaces,
+                                   "f_plate_until": rows_until_plate_end_spaces,
+                                    },
+                   'f_header_matrix_to_plate': return_plate_no_header},
+    "BMG LABTECH": {  'kw_read_xlsx': {},
+                      'kw_read_csv': _KW_CSV,
+                      'f_header_matrix_to_plate': return_plate_no_header
+                      },
+    "CLARIOSTAR": {  'kw_read_xlsx': {},
+                      'kw_read_csv': {"sep":r"\s+",
+                                      # add a single leading zero to the first line
+                                      'f_join_plate':lambda x: \
+                                          "".join(["0" + l if i ==0 else l
+                                                   for i,l in enumerate(x)]),
+                                   "f_header_until": rows_until_plate_start_spaces,
+                                   "f_plate_until": rows_until_plate_end_spaces
+                                      },
+                      'f_header_matrix_to_plate': return_plate_no_header
+                      },
+}

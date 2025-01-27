@@ -349,17 +349,18 @@ def save_multiple_plates_to_same_file(plate_df_colors,file_name):
                     i_row += len(p) + 1
 
 
-def write_plates_as_csv(dfs,file_v_expected):
+def write_plates_as_csv(dfs,file_v_expected,index=True):
     """
 
     :param dfs: list of data frames
     :param file_v_expected:  where to write
+    :params index: if index should be written
     :return:  nothing, write all dataframes to csv
     """
-    dfs[0].to_csv(file_v_expected, index=True)
+    dfs[0].to_csv(file_v_expected, index=index)
     if len(dfs) > 1:
         for d in dfs[1:]:
-            d.to_csv(file_v_expected, index=True, mode="a")
+            d.to_csv(file_v_expected, index=index, mode="a")
 
 def read_plates_as_csv(file_v_expected,n_expected,n_rows):
     """

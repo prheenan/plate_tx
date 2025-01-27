@@ -135,8 +135,10 @@ def flat_to_plate_df(df_flat,col_value="Value"):
     :param col_value: value column
     :return: e.g. output of matrix_to_plate_df
     """
+    # aggfunc=first and dropna=False necessary for when we have strings.
     to_ret = pandas.pivot_table(df_flat[["Row","Column",col_value]],
-                                index="Row",columns="Column",values=col_value)
+                                index="Row",columns="Column",values=col_value,
+                                dropna=False,aggfunc="first")
     # reorder columns so that 1 is always before 2
     cols_order = sorted(to_ret.columns,key=int)
     # reorder rows so that AF is always after P
