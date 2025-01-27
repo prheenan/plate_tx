@@ -10,6 +10,7 @@ from numpy.random import randint
 import video
 import utilities
 import plate_io
+from plate_io import save_all_plates
 
 class MyTestCase(unittest.TestCase):
     """
@@ -185,8 +186,7 @@ class MyTestCase(unittest.TestCase):
             for suffix in [f"_{k}.xlsx",f"_{k}.csv"]:
                 with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                     # saveing out to excel and csv are a littler different
-                    save_multiple_plates_to_same_file(plate_df_colors=plate_df_colors,
-                                                      file_name=f.name)
+                    save_all_plates(plate_df_colors=plate_df_colors,file_name=f.name)
                     self._check_plate_read_expected(f.name,
                                                     sheet_to_matrices={"Sheet1":all_matrices})
             # # Check that if we concatenate them column-wise, that also works
@@ -200,16 +200,15 @@ class MyTestCase(unittest.TestCase):
             for suffix in [f"_{k}.xlsx",f"_{k}.csv"]:
                 with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                     # saveing out to excel and csv are a littler different
-                    save_multiple_plates_to_same_file(plate_df_colors=all_concat_mult,
-                                                      file_name=f.name)
+                    save_all_plates(plate_df_colors=all_concat_mult,file_name=f.name)
                     self._check_plate_read_expected(f.name,
                                                     sheet_to_matrices={"Sheet1":mat_mult})
             # # Multiple plates on rows and columns and multiple sheets, still works (just for XLSX)
             with tempfile.NamedTemporaryFile(suffix=f"_{k}.xlsx") as f:
-                save_multiple_plates_to_same_file(plate_df_colors={"Sheet1":all_concat_mult,
-                                                                   "Sheet2":all_concat_mult_v2,
-                                                                   "Sheet3":all_concat_mult},
-                                                  file_name=f.name)
+                save_all_plates(plate_df_colors={"Sheet1":all_concat_mult,
+                                                 "Sheet2":all_concat_mult_v2,
+                                                 "Sheet3":all_concat_mult},
+                                file_name=f.name)
                 self._check_plate_read_expected(f.name,
                                                 sheet_to_matrices={
                                                     "Sheet1": mat_mult,
@@ -314,7 +313,7 @@ class MyTestCase(unittest.TestCase):
             plate_type = os.path.basename(file_v).split(".")[0]
             df_flat_v2 = plate_io.plate_to_flat(file_v,file_type=plate_type)
             # save out the file with this line:
-            # write_plates_as_csv(df_flat_v2["Sheet1"], file_v_expected)
+            # save_all_plates(plate_df_colors=df_flat_v2, file_v_expected)
             n_expected = len(df_flat_v2["Sheet1"])
             n_rows =  len(df_flat_v2["Sheet1"][0])
             expected = read_plates_as_csv(file_v_expected, n_expected, n_rows)
@@ -323,46 +322,13 @@ class MyTestCase(unittest.TestCase):
                     assert all(s_expected == s)
                 self.i_sub_test += 1
 
-
-def save_multiple_plates_to_same_file(plate_df_colors,file_name):
-    """
-
-    :param plate_df_colors: either list of plates (CSV or XLSX) or dictionary going
-     from sheet name to list of plates (XLSX only)
-    :param file_name:  file to save
-    :return:  nothing
-    """
-    if file_name.endswith(".csv"):
-        plate_df_colors[0].to_csv(file_name)
-        for p in plate_df_colors[1:]:
-            p.to_csv(file_name, mode="a")
-    else:
-        if isinstance(plate_df_colors,list):
-            sheet_to_dfs = {"Sheet1":plate_df_colors}
-        else:
-            sheet_to_dfs = plate_df_colors
-        # pylint: disable=abstract-class-instantiated
-        with pandas.ExcelWriter(file_name, engine="openpyxl") as xlsx:
-            for sheet,plates_sheet in sheet_to_dfs.items():
-                i_row = 0
-                for p in plates_sheet:
-                    p.to_excel(xlsx, startrow=i_row,sheet_name=sheet)
-                    # add 1 for header
-                    i_row += len(p) + 1
+    def test_00_mario_as_xlsx(self):
+        """
+        make mario into an xlsx
+        """
 
 
-def write_plates_as_csv(dfs,file_v_expected,index=True):
-    """
 
-    :param dfs: list of data frames
-    :param file_v_expected:  where to write
-    :params index: if index should be written
-    :return:  nothing, write all dataframes to csv
-    """
-    dfs[0].to_csv(file_v_expected, index=index)
-    if len(dfs) > 1:
-        for d in dfs[1:]:
-            d.to_csv(file_v_expected, index=index, mode="a")
 
 def read_plates_as_csv(file_v_expected,n_expected,n_rows):
     """
@@ -381,6 +347,7 @@ def read_plates_as_csv(file_v_expected,n_expected,n_rows):
         i_offset += n_rows + 1
         df_expected.append(df_here)
     return df_expected
+
 
 if __name__ == '__main__':
     unittest.main()

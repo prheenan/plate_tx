@@ -31,6 +31,45 @@ def return_plate_or_none_if_all(_,matrix,f_test):
         return None
     return utilities.matrix_to_plate_df(matrix)
 
+
+def save_all_plates(plate_df_colors,file_name,index=True):
+    """
+
+    :param plate_df_colors: either list of plates (CSV or XLSX) or dictionary going
+     from sheet name to list of plates (XLSX only)
+    :param file_name:  file to save
+    :param index: if true
+    :return:  nothing
+    """
+    if file_name.endswith(".csv"):
+        if isinstance(plate_df_colors,dict):
+            dfs = [ e for k in plate_df_colors
+                    for e in plate_df_colors[k]]
+        elif isinstance(plate_df_colors,list):
+            # is a list
+            dfs = plate_df_colors
+        else:
+            raise ValueError(f"Didn't understand how to save {type(plate_df_colors)}")
+        dfs[0].to_csv(file_name, index=index)
+        if len(dfs) > 1:
+            for d in dfs[1:]:
+                d.to_csv(file_name, index=index, mode="a")
+    else:
+        if isinstance(plate_df_colors,list):
+            sheet_to_dfs = {"Sheet1":plate_df_colors}
+        else:
+            sheet_to_dfs = plate_df_colors
+        # pylint: disable=abstract-class-instantiated
+        with pandas.ExcelWriter(file_name, engine="openpyxl") as xlsx:
+            for sheet,plates_sheet in sheet_to_dfs.items():
+                i_row = 0
+                for p in plates_sheet:
+                    p.to_excel(xlsx, startrow=i_row,sheet_name=sheet,
+                               index=index)
+                    # add 1 for header
+                    i_row += len(p) + 1
+
+
 def return_plate_and_header(header,matrix):
     """
 
