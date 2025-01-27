@@ -35,7 +35,9 @@ def read_video(file_name,as_grey=False,**kw):
         C is depth (e.g., C=3 for RGB, C=1 for greyscale)
     """
     with warnings.catch_warnings():
+        # skvideo causes multiple warnings to happen; ignore them here
         warnings.simplefilter("ignore",category=DeprecationWarning)
+        warnings.simplefilter("ignore",category=ResourceWarning)
         return vread(file_name,as_grey=as_grey,**kw)
 
 
@@ -65,7 +67,7 @@ def save_comparison_video(frames,file_name,fps = 10,verbose=False):
     :param verbose: if True, prints status messaages
     :return: nothing, saves output
     """
-    fig, _, ims = plot.flat_vs_matrix_figure(matrix=frames[0, :, :, :],
+    fig, _, ims = plot.flat_vs_matrix_figure(matrix=frames[0],
                                              animated=True)
     # Animation update function
     def update_figure(i):

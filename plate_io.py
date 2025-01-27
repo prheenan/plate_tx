@@ -177,7 +177,7 @@ def _rows_until_end_by_regex(lines,plate_start_rows,regex_still_plate):
         end_rows.append(end_row)
     return end_rows
 
-#pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+#pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches
 def flat_converter(plate,start_row,col_rename,still_row_if,use_col_if=None,
                    start_col=None):
     """
@@ -457,7 +457,7 @@ def read_file(file_name,kw_read_xlsx=None,kw_read_csv=None,**kw):
         dict_of_df = _read_text_as_dict_of_df(file_name,**kw_read_csv)
     return dict_of_df
 
-def plate_to_flat(file_name,file_type="DEFAULT PLATE"):
+def read_plate_dict(file_name, file_type="DEFAULT PLATE"):
     """
 
     :param file_name: file name to read in
@@ -484,8 +484,58 @@ def plate_to_flat(file_name,file_type="DEFAULT PLATE"):
                    for k,list_v in flat_files.items()}
     return flat_files
 
+def matrix_to_video_dict(video):
+    """
 
+    :param video: like times X height X width X C, where C is 1 for greyscale or 3 for RGB
+    :return: dictionary, keys are frame index and values are matrixes like heightXwidthXC
+    """
+    times = video.shape[0]
+    is_rgb = len(video.shape) == 4 and video.shape[-1] == 3
+    if is_rgb:
+        sheets = {f"Time {i:04d}":
+                      [utilities.matrix_to_plate_df(video[i, :, :, j])
+                       for j in range(3)]
+                  for i in range(times)}
+    else:
+        sheets = {f"Time {i:04d}": \
+                      [utilities.matrix_to_plate_df(video[i, :, :,0])]
+                  for i in range(times)}
+    return sheets
 
+def file_to_video(file_name,file_type="DEFAULT PLATE",is_rgb=True):
+    """
+
+    :param file_name: either XLSX with R,G,B plates per sheet (time)
+    or CSV with RGB for time 0, then RGB for  time 1, etc
+    :param file_type: what type of file it is
+    :param is_rgb: if trute, is RGB
+    :return: array like < times, height, width, rgb >
+    """
+    plate_dict = read_plate_dict(file_name=file_name,file_type=file_type)
+    if file_name.endswith(".xlsx") or file_name.endswith(".xls"):
+        # stack the sheets directly
+        if is_rgb:
+            # each sheet has r,g,b plates
+            frames_group = plate_dict.values()
+        else:
+            # flatten them all
+            frames_group = [e for v in plate_dict.values()
+                            for e in v]
+    else:
+        frames = plate_dict[list(plate_dict.keys())[0]]
+        if is_rgb:
+            # split into rgb
+            frames_group = [ [frames[i * 3], frames[i * 3 + 1], frames[i * 3 + 2]]
+                             for i in range(len(frames)//3)]
+        else:
+            # use all the frames directly
+            frames_group = frames
+    if is_rgb:
+        time_rgb = np.array([np.dstack(f) for f in frames_group])
+    else:
+        time_rgb = np.array(frames_group)
+    return time_rgb
 
 # name plated types are from
 # https://sciencecloud-preview.my.site.com/s/article/Assay-Reader-Plate-Formats

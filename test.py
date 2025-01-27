@@ -4,9 +4,11 @@ All unit tests
 import unittest
 import os
 import tempfile
+
 import pandas
 import numpy as np
 from numpy.random import randint
+from skvideo.utils import rgb2gray
 import video
 import utilities
 import plate_io
@@ -34,12 +36,16 @@ class MyTestCase(unittest.TestCase):
         cls.video_matrix = video.read_video("data/mario-trim.mov")
         # https://en.wikipedia.org/wiki/Microplate#Formats_and_Standardization_efforts
         cls.resized_videos = {}
+        cls.resized_videos_grey = {}
         for plate,plate_dict in utilities.plate_to_well_dict().items():
             n_rows,n_cols = plate_dict["n_rows"],plate_dict["n_cols"]
-            cls.resized_videos[plate] = \
+            resized = \
                 video.resize_video(cls.video_matrix[::frames_test_rate],
-                                   px_width=n_cols,px_height=n_rows,
+                                   px_width=n_cols, px_height=n_rows,
                                    disable_tqdm=True)
+            cls.resized_videos[plate] = resized
+            cls.resized_videos_grey[plate] = rgb2gray(resized)
+
 
     def _check_plate_read_expected(self,file_name,sheet_to_matrices):
         """
@@ -48,7 +54,7 @@ class MyTestCase(unittest.TestCase):
         :param sheet_to_matrices: expectation: key is sheet name, value
         is list of matrices expected in order
         """
-        sheet_to_dfs = plate_io.plate_to_flat(file_name)
+        sheet_to_dfs = plate_io.read_plate_dict(file_name)
         for sheet_name, matrices in sheet_to_matrices.items():
             with self.subTest(i=self.i_sub_test, msg=file_name):
                 # should only have one file output
@@ -73,7 +79,7 @@ class MyTestCase(unittest.TestCase):
                 # empty data frame should work
                 save(pandas.DataFrame({}),f.name)
                 with self.subTest(i=self.i_sub_test):
-                    df_flat = plate_io.plate_to_flat(f.name)
+                    df_flat = plate_io.read_plate_dict(f.name)
                     assert len(df_flat["Sheet1"]) == 0
                 self.i_sub_test += 1
                 # try every size empty plate (just the column labels)
@@ -84,13 +90,13 @@ class MyTestCase(unittest.TestCase):
                     # # with empty data and column labels but no row labels, should still be empty
                     save(pandas.DataFrame({},columns=cols),f.name)
                     with self.subTest(i=self.i_sub_test,msg=plate_size):
-                        df_flat = plate_io.plate_to_flat(f.name)
+                        df_flat = plate_io.read_plate_dict(f.name)
                         assert len(df_flat["Sheet1"]) == 0
                     self.i_sub_test += 1
                     # # with empty data but column *and* row labels, should get all nans
                     all_nans = pandas.DataFrame({}, columns=cols,index=rows)
                     save(all_nans, f.name)
-                    df_flat = plate_io.plate_to_flat(f.name)
+                    df_flat = plate_io.read_plate_dict(f.name)
                     with self.subTest(i=self.i_sub_test,msg=plate_size):
                         assert len(df_flat["Sheet1"]) == 1
                     self.i_sub_test += 1
@@ -110,7 +116,7 @@ class MyTestCase(unittest.TestCase):
                         np.concatenate([nan_ones, nan_ones, nan_ones], axis=1),
                     ])
                     save(pandas.DataFrame(nans_and_data), f.name)
-                    df_flat = plate_io.plate_to_flat(f.name)
+                    df_flat = plate_io.read_plate_dict(f.name)
                     # make sure we recover the data
                     # (note that I ignore the first row and column of index_array
                     # and cat to float to better compare)
@@ -139,7 +145,7 @@ class MyTestCase(unittest.TestCase):
                         np.concatenate([index_array_v2, index_array_v2, index_array], axis=1),
                     ])
                     save(pandas.DataFrame(nans_and_data_v2), f.name)
-                    df_flat_v2 = plate_io.plate_to_flat(f.name)
+                    df_flat_v2 = plate_io.read_plate_dict(f.name)
                     expected = [just_data,just_data,just_data_v2,just_data_v2,
                                 just_data_v2,just_data]
                     with self.subTest(i=self.i_sub_test, msg=plate_size):
@@ -249,7 +255,7 @@ class MyTestCase(unittest.TestCase):
                             np.concatenate([header,nans_and_data],axis=0)
                         save(pandas.DataFrame(nans_and_data_and_header), f.name,
                              index=False)
-                        df_flat = plate_io.plate_to_flat(f.name,file_type="plate_and_header")
+                        df_flat = plate_io.read_plate_dict(f.name, file_type="plate_and_header")
                         with self.subTest(i=self.i_sub_test,msg=f"{plate_size}"):
                             assert len(df_flat['Sheet1']) == 1
                         self.i_sub_test += 1
@@ -273,7 +279,8 @@ class MyTestCase(unittest.TestCase):
                                             ],axis=0)
                         save(pandas.DataFrame(nans_and_data_and_header_multi), f.name,
                              index=False)
-                        df_flat_multi = plate_io.plate_to_flat(f.name,file_type="plate_and_header")
+                        df_flat_multi = plate_io.read_plate_dict(f.name,
+                                                                 file_type="plate_and_header")
                         # second and last headers are empty
                         empty_header = np.ones(shape=(0,n_cols_data),dtype=float)
                         expected_header = [header,
@@ -311,7 +318,7 @@ class MyTestCase(unittest.TestCase):
                                    for f in example_files]
         for file_v,file_v_expected in zip(example_files,example_files_expected):
             plate_type = os.path.basename(file_v).split(".")[0]
-            df_flat_v2 = plate_io.plate_to_flat(file_v,file_type=plate_type)
+            df_flat_v2 = plate_io.read_plate_dict(file_v, file_type=plate_type)
             # save out the file with this line:
             # save_all_plates(plate_df_colors=df_flat_v2, file_v_expected)
             n_expected = len(df_flat_v2["Sheet1"])
@@ -324,9 +331,29 @@ class MyTestCase(unittest.TestCase):
 
     def test_00_mario_as_xlsx(self):
         """
-        make mario into an xlsx
+        make mario into an xlsx/csv and read back
         """
-
+        self.i_sub_test = 0
+        for video_mat,is_rgb in [[self.resized_videos_grey["3456"], False],
+                                 [self.resized_videos["3456"], True]]:
+            for suffix in [".csv",".xlsx"]:
+                sheets = plate_io.matrix_to_video_dict(video_mat)
+                with tempfile.NamedTemporaryFile(suffix=suffix) as f:
+                    # save the plates out
+                    plate_io.save_all_plates(sheets,file_name=f.name,index=True)
+                    # read the plates back in
+                    time_rgb = plate_io.file_to_video(file_name=f.name,
+                                                      file_type="DEFAULT PLATE",
+                                                      is_rgb=is_rgb)
+                    with self.subTest(i=self.i_sub_test):
+                        if is_rgb:
+                            # should matc exactly
+                            assert (time_rgb == video_mat).all()
+                        else:
+                            # greyscale is floating point so should be close
+                            np.testing.assert_allclose(time_rgb,
+                                                       np.reshape(video_mat,time_rgb.shape))
+                    self.i_sub_test += 1
 
 
 
