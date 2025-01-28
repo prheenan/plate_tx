@@ -4,7 +4,7 @@ All unit tests
 import unittest
 import os
 import tempfile
-
+from click.testing import CliRunner
 import pandas
 import numpy as np
 from numpy.random import randint
@@ -14,6 +14,8 @@ import utilities
 import plate_io
 from plate_io import save_all_plates
 import plate_tx
+from plate_tx import visualize
+
 
 class MyTestCase(unittest.TestCase):
     """
@@ -354,24 +356,47 @@ class MyTestCase(unittest.TestCase):
                             # greyscale is floating point so should be close
                             np.testing.assert_allclose(time_rgb,
                                                        np.reshape(video_mat,time_rgb.shape))
+                    # check the command line testing
                     # second, make sure the video works
                     self.i_sub_test += 1
-                    kw_common = {'input_file':f.name,
-                                 'input_type':"DEFAULT PLATE",
-                                 'is_rgb':is_rgb,'fps':10}
+                    kw_common = {'input_file':f.name,'is_rgb':is_rgb,'fps':10,
+                                 'input_type':"DEFAULT PLATE"}
                     with tempfile.NamedTemporaryFile(suffix=".gif") as f_out_gif:
                         with self.subTest(i=self.i_sub_test):
-                            plate_tx.visualize_helper(output_file=f_out_gif.name,
-                                                      **kw_common)
+                            kw_check = {'function': plate_tx.visualize_helper,
+                                        'cli':visualize,
+                                        'kw':{'output_file':f_out_gif.name,**kw_common}
+                                        }
+                            check_command_line_matches_function(**kw_check)
                         self.i_sub_test += 1
                     # make sure the png works
                     with tempfile.NamedTemporaryFile(suffix=".png") as f_out_png:
                         with self.subTest(i=self.i_sub_test):
-                            plate_tx.visualize_helper(output_file=f_out_png.name,
-                                                      **kw_common)
+                            kw_check = {'function': plate_tx.visualize_helper,
+                                        'cli':visualize,
+                                        'kw':{'output_file':f_out_png.name,**kw_common}}
+                            check_command_line_matches_function(**kw_check)
                         self.i_sub_test += 1
 
+def check_command_line_matches_function(function,cli,kw):
+    """
 
+    :param function: python function  to call
+    :param cli:  click command line function to call
+    :param kw: keywords to pass to function
+    :return:
+    """
+    runner = CliRunner()
+    args = [ e for k,v in kw.items() for e in [f"--{k}",v]]
+    # get the data from the cli
+    runner.invoke(cli, args)
+    with open(kw["output_file"],'rb') as f:
+        data_cli = [e for l in f.readlines() for e in l ]
+    # get the data from the function
+    function(**kw)
+    with open(kw["output_file"],'rb') as f:
+        data_function = [e for l in f.readlines() for e in l ]
+    assert data_cli == data_function
 
 def read_plates_as_csv(file_v_expected,n_expected,n_rows):
     """

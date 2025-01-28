@@ -116,26 +116,6 @@ def visualize_helper(input_file,output_file,input_type="DEFAULT PLATE",
         fig.savefig(output_file)
         plt.close(fig)
 
-
-@cli.command()
-@click.option('--input_file', required=True,
-              type=click.Path(dir_okay=False,readable=True,exists=True))
-@click.option('--output_file', required=False,default=None,
-              type=click.Path(dir_okay=False,writable=True))
-@click.option("--input_type",required=False,
-              type=click.Choice(plate_io.PLATE_OPTIONS))
-@click.option("--output_type",default="FLAT",required=False,
-              type=click.Choice(["PLATE","FLAT"]))
-def visualize(**kw):
-    """
-
-    :param kw: see visualize_helper
-    :return: see visualize_helper
-    """
-    return visualize_helper(**kw)
-
-
-
 @cli.command()
 @click.option('--input_file', required=True,
               type=click.Path(dir_okay=False,readable=True,exists=True))
@@ -149,6 +129,26 @@ def visualize(**kw):
               type=int)
 @click.option("--cmap",required=False,default=None,
               type=click.Choice(list(matplotlib.colormaps.keys())))
+def visualize(**kw):
+    """
+
+    :param kw: see visualize_helper
+    :return: see visualize_helper
+    """
+    return visualize_helper(**kw)
+
+
+
+
+@cli.command()
+@click.option('--input_file', required=True,
+              type=click.Path(dir_okay=False,readable=True,exists=True))
+@click.option('--output_file', required=False,default=None,
+              type=click.Path(dir_okay=False,writable=True))
+@click.option("--input_type",required=False,
+              type=click.Choice(plate_io.PLATE_OPTIONS))
+@click.option("--output_type",default="FLAT",required=False,
+              type=click.Choice(["PLATE","FLAT"]))
 def convert(**kw):
     """
 
