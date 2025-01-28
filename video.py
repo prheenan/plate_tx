@@ -8,6 +8,7 @@ import cv2 as cv
 import numpy as np
 from tqdm import tqdm
 from matplotlib import animation
+from matplotlib import pyplot as plt
 import plot
 
 def read_demo_video(start_px=50,stop_px=750,**kw):
@@ -75,7 +76,7 @@ def save_comparison_video(frames,file_name,fps = 10,verbose=False):
             print(f"Frame {i + 1:04d}/{len(frames):04d}")
         # Update the data
         ims[0].set_array(frames[i])
-        ims[1].set_array(plot.flatten_rgb(frames[i]))
+        ims[1].set_array(plot.flatten_image(frames[i]))
         return ims
 
     def init_func():
@@ -89,3 +90,4 @@ def save_comparison_video(frames,file_name,fps = 10,verbose=False):
                                   repeat=True)
 
     ani.save(file_name, writer=animation.PillowWriter(fps=fps))
+    plt.close(fig)

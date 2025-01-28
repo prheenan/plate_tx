@@ -13,6 +13,7 @@ import video
 import utilities
 import plate_io
 from plate_io import save_all_plates
+import plate_tx
 
 class MyTestCase(unittest.TestCase):
     """
@@ -341,7 +342,7 @@ class MyTestCase(unittest.TestCase):
                 with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                     # save the plates out
                     plate_io.save_all_plates(sheets,file_name=f.name,index=True)
-                    # read the plates back in
+                    # first read the plates back in
                     time_rgb = plate_io.file_to_video(file_name=f.name,
                                                       file_type="DEFAULT PLATE",
                                                       is_rgb=is_rgb)
@@ -353,7 +354,22 @@ class MyTestCase(unittest.TestCase):
                             # greyscale is floating point so should be close
                             np.testing.assert_allclose(time_rgb,
                                                        np.reshape(video_mat,time_rgb.shape))
+                    # second, make sure the video works
                     self.i_sub_test += 1
+                    kw_common = {'input_file':f.name,
+                                 'file_type':"DEFAULT PLATE",
+                                 'is_rgb':is_rgb,'fps':10}
+                    with tempfile.NamedTemporaryFile(suffix=".gif") as f_out_gif:
+                        with self.subTest(i=self.i_sub_test):
+                            plate_tx.visualize_helper(output_file=f_out_gif.name,
+                                                      **kw_common)
+                        self.i_sub_test += 1
+                    # make sure the png works
+                    with tempfile.NamedTemporaryFile(suffix=".png") as f_out_png:
+                        with self.subTest(i=self.i_sub_test):
+                            plate_tx.visualize_helper(output_file=f_out_png.name,
+                                                      **kw_common)
+                        self.i_sub_test += 1
 
 
 

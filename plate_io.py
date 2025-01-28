@@ -503,13 +503,13 @@ def matrix_to_video_dict(video):
                   for i in range(times)}
     return sheets
 
-def file_to_video(file_name,file_type="DEFAULT PLATE",is_rgb=True):
+def file_to_video(file_name,file_type="DEFAULT PLATE",is_rgb=False):
     """
 
     :param file_name: either XLSX with R,G,B plates per sheet (time)
     or CSV with RGB for time 0, then RGB for  time 1, etc
     :param file_type: what type of file it is
-    :param is_rgb: if trute, is RGB
+    :param is_rgb: if true, is RGB
     :return: array like < times, height, width, rgb >
     """
     plate_dict = read_plate_dict(file_name=file_name,file_type=file_type)

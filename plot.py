@@ -5,13 +5,14 @@ from matplotlib import pyplot as plt
 import numpy as np
 import utilities
 
-def plate_fig(plate_val,dpi=200,in_per_n=1/10):
+def plate_fig(plate_val,dpi=200,in_per_n=1/10,cmap=None):
     """
     Format a figure to display a platemap
 
     :param plate_val: plate
     :param dpi:dpi for figure
     :param in_per_n: inches per pixels
+    :param cmap: color map
     :return:
     """
     n_rows, n_cols =  plate_val.shape[0], plate_val.shape[1]
@@ -20,7 +21,7 @@ def plate_fig(plate_val,dpi=200,in_per_n=1/10):
     fig.tight_layout(pad=0)
     ax = plt.gca()
     format_for_plate(ax,n_rows=n_rows,n_cols=n_cols)
-    ax.imshow(plate_val)
+    ax.imshow(plate_val,cmap=cmap)
     return fig
 
 def _default_if_none(val,default):
@@ -69,14 +70,18 @@ def format_for_plate(ax=None, font_size=4, spacing_col=None, spacing_row=None,
     ax.set_yticks(ticks=list(range(0, n_rows))[::spacing_row],
                   labels=rows[::spacing_row], font={"size": font_size})
 
-def flatten_rgb(image):
+def flatten_image(image):
     """
     flatten an RGB image into a single column
 
     :param image: RGB image, like <N,M,3>
     :return: RGB column, like <N*M,1,3>
     """
-    return np.reshape(image,(image.shape[0]*image.shape[1],1,3))
+    if len(image.shape) == 3 and image.shape[-1] == 3:
+        # RGB
+        return np.reshape(image,(image.shape[0]*image.shape[1],1,3))
+    # greyscale
+    return np.reshape(image,(image.shape[0]*image.shape[1],1))
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def flat_vs_matrix_figure(matrix,flat=None,figsize=(4.25,2.1),dpi=200,
@@ -85,7 +90,7 @@ def flat_vs_matrix_figure(matrix,flat=None,figsize=(4.25,2.1),dpi=200,
     compare flattened versu matriced figures
 
     :param matrix: matrix format of image
-    :param flat: see flatten_rgb applied to matrix
+    :param flat: see flatten_image applied to matrix
     :param figsize: see plt.subplots
     :param dpi:see plt.subplots
     :param width_ratios:see plt.subplots
@@ -94,7 +99,7 @@ def flat_vs_matrix_figure(matrix,flat=None,figsize=(4.25,2.1),dpi=200,
     :return: tuple of < figure, two axes, two image artists>
     """
     if flat is None:
-        flat = flatten_rgb(matrix)
+        flat = flatten_image(matrix)
     # Create a figure and axes
     fig, axs = plt.subplots(nrows=1,ncols=2,dpi=dpi,layout="constrained",
                            figsize=figsize,width_ratios=width_ratios)
