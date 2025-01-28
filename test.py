@@ -14,7 +14,7 @@ import utilities
 import plate_io
 from plate_io import save_all_plates
 import plate_tx
-from plate_tx import visualize
+from plate_tx import visualize,convert
 
 
 class MyTestCase(unittest.TestCase):
@@ -331,6 +331,12 @@ class MyTestCase(unittest.TestCase):
                 with self.subTest(i=self.i_sub_test,msg=os.path.basename(file_v)):
                     assert all(s_expected == s)
                 self.i_sub_test += 1
+            with tempfile.NamedTemporaryFile(suffix=".csv") as f_out:
+                for output_type in ["PLATE","FLAT"]:
+                    kw = {'input_file':file_v,"input_type":plate_type,
+                          "output_file":f_out.name,"output_type":output_type}
+                    check_command_line_matches_function(function=plate_tx.convert_helper,
+                                                        cli=convert, kw=kw)
 
     def test_00_mario_as_xlsx(self):
         """

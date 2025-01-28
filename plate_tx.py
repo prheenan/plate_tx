@@ -79,7 +79,7 @@ def convert_helper(input_file,input_type,output_type,output_file):
     elif output_type == "FLAT":
         dict_output = {k:[utilities.plate_to_flat_df(e)
                           for e in dict_of_plates[k]]
-                       for k in dict_of_plates.items()}
+                       for k in dict_of_plates.keys()}
     else:
         raise ValueError("Didn't understand")
     plate_io.save_all_plates(plate_df_colors=dict_output,
@@ -146,7 +146,7 @@ def visualize(**kw):
 @click.option('--output_file', required=False,default=None,
               type=click.Path(dir_okay=False,writable=True))
 @click.option("--input_type",required=False,
-              type=click.Choice(plate_io.PLATE_OPTIONS))
+              type=click.Choice(plate_io.PLATE_OPTIONS,case_sensitive=False))
 @click.option("--output_type",default="FLAT",required=False,
               type=click.Choice(["PLATE","FLAT"]))
 def convert(**kw):
