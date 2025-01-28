@@ -643,3 +643,7 @@ PLATE_PARAMS = {
                       'f_header_matrix_to_plate': return_plate_no_header
                       },
 }
+
+# ignore plate and headers which is just used for testing for now
+PLATE_OPTIONS = [e for e in list(PLATE_PARAMS.keys()) + list(FLAT_PARAMS.keys())
+                 if e != "PLATE_AND_HEADER"]

@@ -357,7 +357,7 @@ class MyTestCase(unittest.TestCase):
                     # second, make sure the video works
                     self.i_sub_test += 1
                     kw_common = {'input_file':f.name,
-                                 'file_type':"DEFAULT PLATE",
+                                 'input_type':"DEFAULT PLATE",
                                  'is_rgb':is_rgb,'fps':10}
                     with tempfile.NamedTemporaryFile(suffix=".gif") as f_out_gif:
                         with self.subTest(i=self.i_sub_test):
