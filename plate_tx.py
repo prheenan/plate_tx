@@ -83,7 +83,7 @@ def convert_helper(input_file,input_type,output_type,output_file):
     else:
         raise ValueError("Didn't understand")
     plate_io.save_all_plates(plate_df_colors=dict_output,
-                             file_name=output_file)
+                             file_name=output_file,index=output_type == "PLATE")
 
 #pylint : disable=too-many-positional-arguments,too-many-arguments
 def visualize_helper(input_file,output_file,input_type="DEFAULT PLATE",
@@ -113,6 +113,7 @@ def visualize_helper(input_file,output_file,input_type="DEFAULT PLATE",
             cmap = matplotlib.colormaps["plasma"] if cmap is None else cmap
             matrix = frames[0, :, :]
         fig = plot.plate_fig(plate_val=matrix,cmap=cmap)
+        fig.tight_layout()
         fig.savefig(output_file)
         plt.close(fig)
 
@@ -148,7 +149,7 @@ def visualize(**kw):
 @click.option("--input_type",required=False,
               type=click.Choice(plate_io.PLATE_OPTIONS,case_sensitive=False))
 @click.option("--output_type",default="FLAT",required=False,
-              type=click.Choice(["PLATE","FLAT"]))
+              type=click.Choice(["PLATE","FLAT"],case_sensitive=False))
 def convert(**kw):
     """
 
@@ -156,6 +157,14 @@ def convert(**kw):
     :return: see convert_helper
     """
     return convert_helper(**kw)
+
+@cli.command()
+def print_plate_types():
+    print("\n".join(plate_io.PLATE_PARAMS.keys()))
+
+@cli.command()
+def print_flat_file_types():
+    print("\n".join(plate_io.FLAT_PARAMS.keys()))
 
 
 if __name__ == "__main__":

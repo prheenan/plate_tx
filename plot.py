@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import utilities
 
-def plate_fig(plate_val,dpi=200,in_per_n=1/10,cmap=None):
+def plate_fig(plate_val,dpi=200,in_per_n=1/20,cmap=None):
     """
     Format a figure to display a platemap
 
